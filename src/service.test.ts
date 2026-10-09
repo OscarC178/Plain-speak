@@ -65,3 +65,11 @@ test('correction reads incoming text without draft selection requirements',async
  const result=await fetch(f.url+'/result/'+request_id,{headers:{Authorization:'Bearer '+f.service.token}});
  expect((await result.json()).mode).toBe('correct');
 });
+
+test('pointer is accepted inside the window and rejected outside 0 to 1',async()=>{
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
+ let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});
+ expect((await f.post({...capture,image_base64:png,pointer:{x:1.5,y:0.2}})).status).toBe(400);
+ expect((await f.post({...capture,image_base64:png,pointer:{x:0.2,y:0.8}})).status).toBe(202);
+ expect(prompt).toContain('about 20% across and 80% down');
+});

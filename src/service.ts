@@ -10,6 +10,7 @@ const input = z.object({
   app: z.string().max(200), title: z.string().max(2000), mode: z.enum(['read', 'correct', 'draft']),
   text: z.string().max(40000).optional(), image_base64: z.string().max(8_000_000).optional(),
   context: z.boolean().optional(),
+  pointer: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict().optional(),
 }).strict().refine(v => v.text?.trim() || v.image_base64, 'Capture needs text or a PNG');
 export type Result = { request_id: string; state: 'pending' | 'done' | 'error'; mode: string; text?: string; created: number };
 

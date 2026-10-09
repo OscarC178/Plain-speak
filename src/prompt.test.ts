@@ -16,3 +16,9 @@ test('context explicitly searches both notes and Drive and requires citations',(
  expect(prompt).toContain('Cite document titles and source links');
  expect(prompt).toContain('which source could not be checked');
 });
+test('pointer position steers which visible message is explained, only for screenshots',()=>{
+ const cap={app:'Slack',title:'general - Slack',mode:'read' as const,image:'/tmp/x.png',pointer:{x:0.425,y:0.7}};
+ expect(buildPrompt('id',cap,resolve(rules,cap))).toContain('about 43% across and 70% down the screenshot');
+ const noImage={...cap,image:undefined};
+ expect(buildPrompt('id',noImage,resolve(rules,noImage))).not.toContain('pointed at');
+});

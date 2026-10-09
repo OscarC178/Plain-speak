@@ -28,6 +28,8 @@ export interface Capture {
   text?: string;
   /** Path to a saved screenshot of the window, if one was taken. */
   image?: string;
+  /** Where the pointer was when the button was pressed, as fractions of the screenshot (0 to 1). */
+  pointer?: { x: number; y: number };
 }
 
 export interface Match {

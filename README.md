@@ -12,9 +12,10 @@ subscription login. No API keys. macOS only.
 
 ## What it does
 
-**Read.** The back side button captures the focused window and explains the
-visible message: the point, what they want from you, any deadline, and what is
-unclear. Real output from Haiku 5.5:
+**Read.** Point at a message and press the back side button. It captures the
+focused window and explains the message under the pointer: the point, what they
+want from you, any deadline, and what is unclear. Each part gets its own short
+paragraph. The panel opens beside the pointer. Real output from Haiku 5.5:
 
 ![A wordy message on the left; the plain-English reading on the right](docs/images/read-before-after.png)
 
@@ -41,7 +42,7 @@ Google Drive, and cites what it used.
 | Control + Option + Command + R | Same as the back side button |
 | Control + Option + Command + D | Correct the text you have selected (your own draft) |
 | Control + Option + Command + G | Same as Command + back side button |
-| Escape | Close the overlay |
+| Escape, or click anywhere else once the result shows | Close the overlay |
 
 A **PS** item in the menu bar offers the same actions, plus **Set front mouse
 button…** and **Set back mouse button…** for mice that number their buttons

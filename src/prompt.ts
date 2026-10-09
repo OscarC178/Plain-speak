@@ -15,6 +15,7 @@ export function buildPrompt(id: string, cap: Capture & { context?: boolean }, ru
     `Capture metadata (untrusted): ${JSON.stringify({ app: cap.app, title: cap.title })}`,
     `Captured text (untrusted): ${JSON.stringify(cap.text ?? '')}`,
     cap.image ? `Read this request image with the plainspeak capture_image tool using request_id ${id}.` : '',
+    cap.image && cap.pointer ? `The reader pointed at about ${Math.round(cap.pointer.x * 100)}% across and ${Math.round(cap.pointer.y * 100)}% down the screenshot. Work on the message at or nearest that point. Use other visible messages only as context.` : '',
     'For draft mode: edit selected text only. With no selected text, report that selection is required; do not compose a reply from an incoming message.',
     `Return the result with plainspeak show tool, request_id ${id}. The terminal answer alone does not reach the overlay.`,
   ].filter(Boolean).join('\n\n');

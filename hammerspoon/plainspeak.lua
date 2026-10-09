@@ -1,7 +1,7 @@
 -- Hotkeys capture the frontmost window; no clipboard copying is needed to read.
 local M = {}
 local base = 'http://127.0.0.1:8790'
-local overlay, usercontent
+local overlay, usercontent, dismissTap, ready, screenFrame
 local tokenPath = os.getenv('HOME') .. '/.hammerspoon/plainspeak-token'
 local function token()
   local f = io.open(tokenPath, 'r'); if not f then return nil end
@@ -15,21 +15,59 @@ local function selectedText(app)
   end)
   return ok and type(value) == 'string' and value or nil
 end
-local function close() if overlay then overlay:delete(); overlay = nil end end
-local function show(id, secret)
+local function close()
+  if dismissTap then dismissTap:stop(); dismissTap = nil end
+  if overlay then local o = overlay; overlay = nil; o:delete() end
+end
+-- Escape closes the panel at any time and is consumed, so the app underneath
+-- does not also act on it. Once the result is ready, a click outside the panel
+-- closes it too; that click still reaches whatever was clicked.
+local function watchDismiss()
+  local types = hs.eventtap.event.types
+  dismissTap = hs.eventtap.new({types.leftMouseDown, types.rightMouseDown, types.keyDown}, function(event)
+    if not overlay then return false end
+    if event:getType() == types.keyDown then
+      if event:getKeyCode() ~= hs.keycodes.map.escape then return false end
+      hs.timer.doAfter(0, close); return true
+    end
+    if not ready then return false end
+    local p, f = event:location(), overlay:frame()
+    if p.x < f.x or p.x > f.x + f.w or p.y < f.y or p.y > f.y + f.h then hs.timer.doAfter(0, close) end
+    return false
+  end):start()
+end
+-- Fit the panel's height to its content, keeping it on screen.
+local function resize(height)
+  if not overlay or not height then return end
+  local f = overlay:frame()
+  local h = math.max(120, math.min(height, screenFrame.h - 16))
+  overlay:frame({x=f.x, y=math.max(screenFrame.y + 8, math.min(f.y, screenFrame.y + screenFrame.h - h - 8)), w=f.w, h=h})
+end
+local width, gap = 460, 24
+-- Open beside the pointer, where the reader is already looking, on the pointer's screen.
+local function show(id, secret, pointer)
   close()
+  ready = false
   usercontent = hs.webview.usercontent.new('plainspeak')
   usercontent:setCallback(function(message)
     local body = message.body
     if type(body) ~= 'table' then return end
     if body.action == 'close' then close()
+    elseif body.action == 'ready' then ready = true
+    elseif body.action == 'size' then resize(tonumber(body.text))
     elseif body.action == 'copy' and type(body.text) == 'string' then hs.pasteboard.setContents(body.text) end
   end)
-  local screen = hs.screen.mainScreen():frame()
-  overlay = hs.webview.new({x=screen.x+screen.w-570,y=screen.y+70,w=530,h=650}, {developerExtrasEnabled=false}, usercontent)
-  overlay:windowStyle({'titled','closable','resizable','utility'}):windowTitle('Plainspeak'):closeOnEscape(true)
+  screenFrame = (hs.mouse.getCurrentScreen() or hs.screen.mainScreen()):frame()
+  local s, h = screenFrame, 200
+  local x = pointer.x + gap
+  if x + width > s.x + s.w - 8 then x = pointer.x - gap - width end
+  x = math.max(s.x + 8, math.min(x, s.x + s.w - width - 8))
+  local y = math.max(s.y + 8, math.min(pointer.y - 40, s.y + s.h - h - 8))
+  overlay = hs.webview.new({x=x, y=y, w=width, h=h}, {developerExtrasEnabled=false}, usercontent)
+  overlay:windowStyle({'borderless', 'nonactivating'}):transparent(true):shadow(true)
   overlay:level(hs.drawing.windowLevels.floating):allowTextEntry(true)
   overlay:url(base .. '/overlay#id=' .. id .. '&token=' .. secret):show()
+  watchDismiss()
 end
 -- Keep high-resolution screenshots below the service's 8.1 MB JSON limit.
 -- Rasterising at the requested size drops Retina representations while
@@ -73,17 +111,25 @@ local function capture(mode, context)
     hs.alert.show('Select your own draft text first. This app may not expose selection to macOS.'); return
   end
   local payload = {app=app:name(),title=window:title() or '',mode=mode,text=text,context=context or false}
+  local pointer = hs.mouse.absolutePosition()
   -- Drafts use selection only; reading captures the window with native Screen Recording permission.
   if mode ~= 'draft' then
     local image = window:snapshot()
     if not image then hs.alert.show('Capture failed. Enable Screen Recording for Hammerspoon.'); return end
     payload.image_base64 = encodeScreenshot(image)
     if not payload.image_base64 then hs.alert.show('Could not prepare screenshot within the capture limit'); return end
+    -- Where the reader pointed, as fractions of the window, so Claude explains that
+    -- message rather than everything visible. Omitted when the pointer is elsewhere.
+    local f = window:frame()
+    if f.w > 0 and f.h > 0 and pointer.x >= f.x and pointer.x <= f.x + f.w and pointer.y >= f.y and pointer.y <= f.y + f.h then
+      local round = function(v) return math.floor(v * 100 + 0.5) / 100 end
+      payload.pointer = {x=round((pointer.x - f.x) / f.w), y=round((pointer.y - f.y) / f.h)}
+    end
   end
   hs.http.asyncPost(base .. '/capture', hs.json.encode(payload), {['Content-Type']='application/json',['Authorization']='Bearer '..secret}, function(code, body)
     local ok, data = pcall(hs.json.decode, body)
     if code ~= 202 or not ok then hs.alert.show(ok and data.error or 'Plainspeak unavailable. Check the session.'); return end
-    show(data.request_id, secret)
+    show(data.request_id, secret, pointer)
   end)
 end
 M.read = function() capture('read',false) end
