@@ -27,13 +27,13 @@ final class Capture {
     func grab(mode: Mode, context: Bool) async -> Grab? {
         guard AXIsProcessTrusted() else {
             await say("Plainspeak needs Accessibility. Turn it on in System Settings, then try again.")
-            await Settings.open(.accessibility)
+            await MainActor.run { Settings.open(.accessibility) }
             return nil
         }
         if mode != .draft, !CGPreflightScreenCaptureAccess() {
             CGRequestScreenCaptureAccess()
             await say("Plainspeak needs Screen Recording. Turn it on in System Settings, then quit and reopen Plainspeak.")
-            await Settings.open(.screenRecording)
+            await MainActor.run { Settings.open(.screenRecording) }
             return nil
         }
         // Capture before showing anything, so the panel never becomes the input.
@@ -186,7 +186,7 @@ final class Capture {
 /// System Settings panes Plainspeak sends you to.
 enum Settings {
     case accessibility, screenRecording
-    @MainActor static func open(_ pane: Settings) {
+    static func open(_ pane: Settings) { // call on the main thread
         let anchor = pane == .accessibility ? "Privacy_Accessibility" : "Privacy_ScreenCapture"
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)")!)
     }

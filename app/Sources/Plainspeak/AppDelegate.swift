@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import ServiceManagement
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let service = Service()
@@ -8,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let sideButtons = SideButtons()
     private let hotkeys = Hotkeys()
     private let settingsWindow = SettingsWindow()
+    private let setup = SetupWindow()
     private let readStyles = NSMenu(), draftStyles = NSMenu()
     private var statusItem: NSStatusItem!
     private let statusLine = NSMenuItem(title: "Starting…", action: nil, keyEquivalent: "")
@@ -30,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(submenu("Reading style", readStyles))
         menu.addItem(submenu("Draft style", draftStyles))
         menu.addItem(item("Settings…", #selector(openSettings), key: ",", hotkey: false))
+        menu.addItem(item("Setup and permissions…", #selector(openSetup)))
         menu.addItem(.separator())
         menu.addItem(item("Set front mouse button…", #selector(learnFront)))
         menu.addItem(item("Set back mouse button…", #selector(learnBack)))
@@ -41,14 +44,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.menu = menu
         installEditMenu()
 
-        service.onChange = { [weak self] state in self?.show(state) }
+        service.onChange = { [weak self] state in
+            self?.show(state)
+            self?.setup.model.claude = state
+        }
         service.start()
 
-        // Ask macOS for the two permissions up front; each prompt appears only while it is missing.
-        if !AXIsProcessTrusted() {
-            AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+        // Start at login is on unless you switch it off; macOS shows a notice when it is added.
+        if !UserDefaults.standard.bool(forKey: "startAtLoginOffered") {
+            try? SMAppService.mainApp.register()
+            UserDefaults.standard.set(true, forKey: "startAtLoginOffered")
         }
-        if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
+        // The setup window opens by itself the first time, and whenever something it needs is missing.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+            guard let self else { return }
+            self.setup.model.refresh()
+            if !self.setup.model.ready || !UserDefaults.standard.bool(forKey: "setupDone") { self.openSetup() }
+        }
 
         // Front side button corrects, back reads, Command + back adds notes and Drive.
         sideButtons.onPress = { [weak self] press in
@@ -58,7 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .context: self?.run(.read, context: true)
             }
         }
-        sideButtons.onLearned = { Toast.show($0) }
+        sideButtons.onLearned = { [weak self] message in
+            Toast.show(message)
+            if let self { self.setup.model.buttons = self.sideButtons.buttons }
+        }
+        setup.model.buttons = sideButtons.buttons
         sideButtons.start()
         hotkeys.register(kVK_ANSI_R) { [weak self] in self?.run(.read) }
         hotkeys.register(kVK_ANSI_D) { [weak self] in self?.run(.draft) }
@@ -187,6 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "context": self?.run(.read, context: true)
             case "close": self?.overlay.close()
             case "settings": self?.settingsWindow.show()
+            case "setup": self?.openSetup()
             default: self?.run(.read)
             }
         }
@@ -201,6 +218,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func learnBack() { sideButtons.learn("back") }
 
     @objc private func openSettings() { settingsWindow.show() }
+
+    @objc private func openSetup() {
+        setup.show(actions: SetupActions(
+            turnOnAccessibility: {
+                AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+                Settings.open(.accessibility)
+            },
+            turnOnScreenRecording: {
+                CGRequestScreenCaptureAccess()
+                Settings.open(.screenRecording)
+            },
+            reopen: { [weak self] in self?.relaunch() },
+            checkClaude: { [weak self] in self?.service.restart() },
+            setStartAtLogin: { [weak self] on in
+                do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
+                catch { Toast.show("Could not change start at login: \(error.localizedDescription)") }
+                if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+                self?.setup.model.refresh()
+            },
+            learn: { [weak self] which in self?.sideButtons.learn(which) },
+            done: { [weak self] in
+                UserDefaults.standard.set(true, forKey: "setupDone")
+                self?.setup.close()
+            }))
+    }
+
+    /// Screen Recording only takes effect in a fresh process, so start a new copy and quit this one.
+    private func relaunch() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? task.run()
+        NSApp.terminate(nil)
+    }
 
     @objc private func openLog() { NSWorkspace.shared.open(Paths.log) }
     @objc private func restartService() { service.restart() }
