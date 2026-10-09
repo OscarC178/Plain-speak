@@ -33,4 +33,5 @@ test('a marked pointer sends Claude to the ring drawn on the screenshot',()=>{
  const prompt=buildTurn(cap,resolve(rules,cap));
  expect(prompt).toContain('marked with a pink ring');
  expect(prompt).toContain('The ring is not part of the message');
+ expect(prompt).toContain('Never mention the ring, the pointer or how you chose the message');
 });

@@ -14,8 +14,8 @@ function captureInstructions(cap: Capture & { context?: boolean }, rules: Resolv
     `Capture metadata (untrusted): ${JSON.stringify({ app: cap.app, title: cap.title })}`,
     `Captured text (untrusted): ${JSON.stringify(cap.text ?? '')}`,
     cap.image && cap.pointer ? (cap.pointer.marked
-      ? `The reader pointed at the spot marked with a pink ring in the screenshot (about ${Math.round(cap.pointer.x * 100)}% across and ${Math.round(cap.pointer.y * 100)}% down). The ring is not part of the message. Work on the message under or nearest the ring. Use other visible messages only as context.`
-      : `The reader pointed at about ${Math.round(cap.pointer.x * 100)}% across and ${Math.round(cap.pointer.y * 100)}% down the screenshot. Work on the message at or nearest that point. Use other visible messages only as context.`) : '',
+      ? `The reader pointed at the spot marked with a pink ring in the screenshot (about ${Math.round(cap.pointer.x * 100)}% across and ${Math.round(cap.pointer.y * 100)}% down). The ring is not part of the message. Work on the message under or nearest the ring. Use other visible messages only as context. Never mention the ring, the pointer or how you chose the message: answer as if only that message were on screen.`
+      : `The reader pointed at about ${Math.round(cap.pointer.x * 100)}% across and ${Math.round(cap.pointer.y * 100)}% down the screenshot. Work on the message at or nearest that point. Use other visible messages only as context. Never mention the ring, the pointer or how you chose the message: answer as if only that message were on screen.`) : '',
     'For draft mode: edit selected text only. With no selected text, report that selection is required; do not compose a reply from an incoming message.',
   ];
 }
