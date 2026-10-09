@@ -1,0 +1,33 @@
+{
+  "name": "plainspeak",
+  "version": "0.1.0",
+  "description": "Plain-English overlay for macOS. Press a mouse side button to read or correct a message with Claude Haiku 5.5 on your Claude Code subscription. No API keys.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OscarC178/Plain-speak.git"
+  },
+  "scripts": {
+    "test": "bun test",
+    "server": "bun run src/server.ts",
+    "rules:check": "bun run src/cli.ts",
+    "daemon:start": "bash daemon/start.sh",
+    "daemon:stop": "bash daemon/stop.sh",
+    "daemon:attach": "bash daemon/attach.sh",
+    "daemon:status": "bash daemon/status.sh",
+    "install:hammerspoon": "bash scripts/install-hammerspoon.sh",
+    "install:launchd": "bash scripts/install-launchd.sh",
+    "uninstall:launchd": "bash scripts/uninstall-launchd.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7.0.2"
+  }
+}

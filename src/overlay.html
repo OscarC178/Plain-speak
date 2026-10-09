@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plainspeak</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:28px;background:#141b22;color:#f3f5f3;font:17px/1.6 system-ui,sans-serif}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #3c4851;padding-bottom:14px}strong{font-size:20px}small{color:#a6bab3;font-size:12px;letter-spacing:1px;text-transform:uppercase}#result{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:24px}footer{margin-top:26px;color:#acb7c0;font-size:12px}button{background:#b7f3a3;color:#132018;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}button:disabled{opacity:.4}#status{color:#b7f3a3}
+</style>
+<header><strong>plainspeak<span style="color:#b7f3a3">.</span></strong><small id="mode">Personal overlay</small></header><p id="status" role="status">Reading…</p><div id="result"></div><footer><button id="copy" disabled>Copy result</button><p>Nothing sent. Escape closes this panel.</p></footer>
+<script>
+// Fragment credentials are not sent in the URL request or Referer.
+const params=new URLSearchParams(location.hash.slice(1)),id=params.get('id'),token=params.get('token');
+history.replaceState(null,'',location.pathname);
+let text='',stopped=false;
+const result=document.getElementById('result'),status=document.getElementById('status'),copy=document.getElementById('copy');
+function bridge(action,value){if(window.webkit?.messageHandlers?.plainspeak)window.webkit.messageHandlers.plainspeak.postMessage({action,text:value})}
+copy.onclick=()=>bridge('copy',text);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')bridge('close','')});
+async function poll(){
+ try{const r=await fetch('/result/'+id,{headers:{Authorization:'Bearer '+token}});const data=await r.json();if(!r.ok)throw Error(data.error);
+ document.getElementById('mode').textContent=data.mode==='draft'?'Your words, corrected':data.mode==='correct'?'Message, corrected':'What they mean';
+ if(data.state!=='pending'){stopped=true;text=data.text;result.textContent=text;status.textContent=data.state==='done'?'Ready':'Needs attention';copy.disabled=data.state!=='done';if(data.state==='done'&&data.mode==='draft')bridge('copy',text)}
+ }catch(e){stopped=true;status.textContent='Could not load result';result.textContent=e.message}
+ if(!stopped)setTimeout(poll,700);
+}if(id&&token)poll();else status.textContent='Use the Plainspeak hotkey to capture a message.';
+</script></html>
