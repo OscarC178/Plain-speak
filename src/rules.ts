@@ -14,8 +14,6 @@
  *     sender is X" so the model does the matching.
  */
 
-import { z } from "zod";
-
 export type Mode = "read" | "correct" | "draft";
 
 export interface Capture {
@@ -26,8 +24,10 @@ export interface Capture {
   mode: Mode;
   /** Selected or copied text, if the hotkey managed to grab any. */
   text?: string;
-  /** Path to a saved screenshot of the window, if one was taken. */
-  image?: string;
+  /** True when a screenshot of the window came with the capture. */
+  image?: boolean;
+  /** Where the pointer was when the button was pressed, as fractions of the screenshot (0 to 1). */
+  pointer?: { x: number; y: number; marked?: boolean };
 }
 
 export interface Match {
@@ -61,6 +61,9 @@ export interface Rule {
   max_lines?: number;
   instructions?: string;
   notes?: string;
+  /** A different style for this rule: replaces the default instructions for that mode. */
+  read_instructions?: string;
+  draft_instructions?: string;
 }
 
 export interface RulesFile {
@@ -178,36 +181,11 @@ export function resolve(rules: RulesFile, cap: Capture): Resolved {
       out.instructions.push(profile.instructions.trim());
       if (profile.max_lines !== undefined) out.max_lines = profile.max_lines;
     }
+    const style = cap.mode === "read" ? rule.read_instructions : cap.mode === "draft" ? rule.draft_instructions : undefined;
+    if (style) out.instructions[0] = style.trim();
     if (rule.instructions) out.instructions.push(rule.instructions.trim());
     if (rule.notes) out.notes.push(rule.notes.trim());
     if (rule.max_lines !== undefined) out.max_lines = rule.max_lines; // rule beats profile beats default
   }
   return out;
-}
-
-/** Validate every editable field so a typo cannot crash matching at runtime. */
-const lineLimit = z.number().int().min(1).max(30);
-const matchSchema = z.object({
-  app: z.string().optional(), title: z.string().optional(), channel: z.string().optional(),
-  text: z.string().optional(), person: z.string().optional(), sender_domain: z.string().optional(),
-  thread: z.string().optional(), mode: z.enum(["read", "correct", "draft"]).optional(),
-}).strict();
-const rulesSchema = z.object({
-  defaults: z.object({ max_lines: lineLimit.default(6), read_instructions: z.string().min(1), draft_instructions: z.string().min(1), correct_instructions: z.string().min(1).optional() }).strict(),
-  profiles: z.record(z.object({ instructions: z.string().min(1), max_lines: lineLimit.optional() }).strict()).default({}),
-  rules: z.array(z.object({ name: z.string().optional(), match: matchSchema, profile: z.string().optional(), max_lines: lineLimit.optional(), instructions: z.string().optional(), notes: z.string().optional() }).strict()).default([]),
-}).strict();
-
-/** Load a complete rules file. Invalid edits fail with the field name. */
-export async function loadRules(path: string): Promise<RulesFile> {
-  const parsed = Bun.YAML.parse(await Bun.file(path).text());
-  const result = rulesSchema.safeParse(parsed);
-  if (!result.success) throw new Error(`${path}: ${result.error.issues.map(i => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
-  for (const rule of result.data.rules) {
-    if (rule.profile && !result.data.profiles[rule.profile]) throw new Error(`${path}: unknown profile ${rule.profile}`);
-    for (const key of ["title", "text"] as const) {
-      if (rule.match[key]) { try { new RegExp(rule.match[key]!, "i"); } catch { throw new Error(`${path}: invalid ${key} regex in ${rule.name ?? "unnamed rule"}`); } }
-    }
-  }
-  return result.data;
 }

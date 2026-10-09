@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { deriveChannel, loadRules, normaliseApp, resolve, type RulesFile } from "./rules";
+import { deriveChannel, normaliseApp, resolve, type RulesFile } from "./rules";
 
 // Minimal in-memory rules file used by most tests so they don't depend on the example YAML.
 const base: RulesFile = {
@@ -84,11 +84,12 @@ describe("resolve", () => {
   });
 });
 
-describe("loadRules", () => {
-  test("the shipped example file parses and resolves", async () => {
-    const rules = await loadRules(new URL("../rules/rules.example.yaml", import.meta.url).pathname);
-    expect(Object.keys(rules.profiles)).toEqual(["ai-drivel", "esl", "dyslexic"]);
-    const r = resolve(rules, { app: "Google Chrome", title: "render-farm (Channel) - Northwind - Slack", mode: "read" });
-    expect(r.max_lines).toBe(3);
+describe("rule styles", () => {
+  test("a matching rule replaces the default style for its mode only", () => {
+    const rules: RulesFile = { ...base, rules: [{ match: { app: "slack" }, read_instructions: "ADHD", draft_instructions: "EMAIL", instructions: "EXTRA" }] };
+    const title = "general (Channel) - X - Slack";
+    expect(resolve(rules, { app: "Slack", title, mode: "read" }).instructions).toEqual(["ADHD", "EXTRA"]);
+    expect(resolve(rules, { app: "Slack", title, mode: "draft", text: "x" }).instructions).toEqual(["EMAIL", "EXTRA"]);
+    expect(resolve(rules, { app: "Slack", title, mode: "correct" }).instructions[0]).not.toBe("ADHD");
   });
 });

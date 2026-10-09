@@ -1,26 +1,21 @@
-# Screenshots captured from your screen. Never commit these.
-captures/*
-!captures/.gitkeep
-
 node_modules/
 .env
 *.log
 .DS_Store
 
-# Your personal rules live in rules/rules.yaml. The example file is tracked;
-# your real file is not, so you can put people's names in it.
-rules/rules.yaml
-
-# Rendered launchd plist (contains absolute paths for this machine)
-daemon/*.rendered.plist
-
 # Video renders
 video/out/
 
-# Local auth token and temporary private screenshots
+# Test runs keep their token and settings here
 .local/
 
 # HyperFrames machine state; keep authored video and review snapshots
 videos/**/.hyperframes/
 videos/**/.thumbnails/
 videos/**/renders/
+
+# Plainspeak.app build output and Swift build cache
+build/
+app/.build/
+# Temporary files bun build --compile leaves behind if interrupted
+*.bun-build

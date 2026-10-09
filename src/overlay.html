@@ -1,23 +1,52 @@
 <!doctype html>
 <html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plainspeak</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:28px;background:#141b22;color:#f3f5f3;font:17px/1.6 system-ui,sans-serif}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #3c4851;padding-bottom:14px}strong{font-size:20px}small{color:#a6bab3;font-size:12px;letter-spacing:1px;text-transform:uppercase}#result{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:24px}footer{margin-top:26px;color:#acb7c0;font-size:12px}button{background:#b7f3a3;color:#132018;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}button:disabled{opacity:.4}#status{color:#b7f3a3}
+/* Reading layout follows the British Dyslexia Association style guide: sans serif, line spacing of 1.5 or more,
+   slightly wider letter and word spacing, short left-aligned paragraphs with clear gaps, bold rather than italics.
+   The light colours follow its colour advice too: dark text on off-white, and no green or red.
+   The page itself is transparent so the app's borderless panel shows the rounded card. */
+:root{color-scheme:light;--bg:#faf6ec;--text:#1f2328;--line:#d8d0bf;--muted:#5d6670;--accent:#1f4e8c;--button:#1f4e8c;--button-text:#fff}
+:root[data-theme=dark]{color-scheme:dark;--bg:#141b22;--text:#eceee9;--line:#3c4851;--muted:#a6bab3;--accent:#b7f3a3;--button:#b7f3a3;--button-text:#132018}
+@media (prefers-color-scheme:dark){:root[data-theme=system]{color-scheme:dark;--bg:#141b22;--text:#eceee9;--line:#3c4851;--muted:#a6bab3;--accent:#b7f3a3;--button:#b7f3a3;--button-text:#132018}}
+*{box-sizing:border-box}html,body{margin:0;background:transparent}
+#card{min-height:100vh;padding:18px 22px 14px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:12px;font:18px/1.6 system-ui,sans-serif;letter-spacing:.02em;word-spacing:.06em}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}strong.brand{font-size:15px;letter-spacing:0}strong.brand span{color:var(--accent)}small{color:var(--muted);font-size:12px;letter-spacing:1px;text-transform:uppercase}
+#status{color:var(--accent);margin:14px 0 0}#status:empty{display:none}#result{margin-top:14px;overflow-wrap:anywhere}#result p,#result ul{margin:0 0 1.1em}#result ul{padding-left:1.2em}#result li{margin-bottom:.4em}#result strong{color:var(--accent);font-weight:700}
+footer{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--line);padding-top:12px;color:var(--muted);font-size:12px;letter-spacing:0}
+button{background:var(--button);color:var(--button-text);border:0;border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}button:disabled{opacity:.4}
 </style>
-<header><strong>plainspeak<span style="color:#b7f3a3">.</span></strong><small id="mode">Personal overlay</small></header><p id="status" role="status">Reading…</p><div id="result"></div><footer><button id="copy" disabled>Copy result</button><p>Nothing sent. Escape closes this panel.</p></footer>
+<main id="card"><header><strong class="brand">plainspeak<span>.</span></strong><small id="mode">Personal overlay</small></header><p id="status" role="status">Reading…</p><div id="result"></div><footer><span>Click away or press Esc to close. Nothing is sent.</span><button id="copy" disabled>Copy</button></footer></main>
 <script>
 // Fragment credentials are not sent in the URL request or Referer.
 const params=new URLSearchParams(location.hash.slice(1)),id=params.get('id'),token=params.get('token');
 history.replaceState(null,'',location.pathname);
-let text='',stopped=false;
-const result=document.getElementById('result'),status=document.getElementById('status'),copy=document.getElementById('copy');
+let text='',shown='',stopped=false;
+const footer=document.querySelector('footer'),result=document.getElementById('result'),status=document.getElementById('status'),copy=document.getElementById('copy');
 function bridge(action,value){if(window.webkit?.messageHandlers?.plainspeak)window.webkit.messageHandlers.plainspeak.postMessage({action,text:value})}
+// Ask the app to fit the panel to the content, so short answers get a short panel.
+// The footer is the last thing in the card; add the card's bottom padding and border.
+function fit(){bridge('size',String(Math.ceil(footer.getBoundingClientRect().bottom+15)))}
 copy.onclick=()=>bridge('copy',text);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')bridge('close','')});
+// Each line becomes its own paragraph so the gaps between them are visible; "- " lines become a list.
+// In read mode a leading "Label:" is bolded. Built with textContent: model output is never parsed as HTML.
+function render(value,mode){
+ result.replaceChildren();let list=null;
+ for(const raw of value.split('\n')){
+  const line=raw.trim();if(!line){list=null;continue}
+  const bullet=/^[-•*]\s+/.exec(line),body=bullet?line.slice(bullet[0].length):line;let el;
+  if(bullet){if(!list){list=document.createElement('ul');result.append(list)}el=document.createElement('li');list.append(el)}
+  else{list=null;el=document.createElement('p');result.append(el)}
+  const label=mode==='read'&&/^\*{0,2}([A-Z][A-Za-z' ]{0,24}):\*{0,2}\s+/.exec(body);
+  if(label){const b=document.createElement('strong');b.textContent=label[1]+':';el.append(b,' '+body.slice(label[0].length))}else el.textContent=body;
+ }
+}
 async function poll(){
  try{const r=await fetch('/result/'+id,{headers:{Authorization:'Bearer '+token}});const data=await r.json();if(!r.ok)throw Error(data.error);
+ document.documentElement.dataset.theme=data.theme||'light';
  document.getElementById('mode').textContent=data.mode==='draft'?'Your words, corrected':data.mode==='correct'?'Message, corrected':'What they mean';
- if(data.state!=='pending'){stopped=true;text=data.text;result.textContent=text;status.textContent=data.state==='done'?'Ready':'Needs attention';copy.disabled=data.state!=='done';if(data.state==='done'&&data.mode==='draft')bridge('copy',text)}
+ if(data.state!=='pending'){stopped=true;text=data.text;render(text,data.mode);status.textContent=data.state==='done'?'':'Needs attention';copy.disabled=data.state!=='done';if(data.state==='done'&&data.mode==='draft')bridge('copy',text)}
+ else if(data.text&&data.text!==shown){shown=data.text;render(shown,data.mode);status.textContent='Writing…';fit()} // streamed partial answer
  }catch(e){stopped=true;status.textContent='Could not load result';result.textContent=e.message}
- if(!stopped)setTimeout(poll,700);
-}if(id&&token)poll();else status.textContent='Use the Plainspeak hotkey to capture a message.';
+ if(stopped){fit();bridge('ready','')}else setTimeout(poll,200);
+}if(id&&token){poll();fit()}else status.textContent='Use the Plainspeak hotkey to capture a message.';
 </script></html>
