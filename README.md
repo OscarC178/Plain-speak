@@ -146,20 +146,20 @@ bun run daemon:status   # is it up?
 bun run daemon:stop     # stop it
 ```
 
-**From Slipway.** Add this as a **Dev Start Command** on the repo card
-(Settings > Repositories):
+**From Slipway.** Nothing to configure. Add the repo, open any branch or
+worktree, and press **Start dev server** in the Run panel. With no Dev Start
+Command saved, Slipway runs `npm run dev`, and this repo's `dev` script starts
+Plainspeak. If you have saved commands for this repo, add `npm run dev` to them
+or clear the list.
 
-```
-bash daemon/slipway-run.sh
-```
+`npm run dev` (or `bun run dev`) runs `daemon/slipway-run.sh`. Slipway's Run
+panel has no terminal, so the script starts the tmux session, accepts the channel
+warning for you, and prints a health line every minute. Stopping the tab stops
+the session. If the session dies, the tab ends with an error.
 
-Then press **Start dev server** in the Run panel. Slipway's Run panel has no
-terminal, so the script starts the tmux session, accepts the channel warning for
-you, and prints a health line every minute. Stopping the tab stops the session.
-If the session dies, the tab ends with an error.
-
-Because the command is a path inside the repo, every branch and worktree runs its
-own copy of the script. A fresh worktree installs its dependencies on first run.
+Because the command lives in the repo, every branch and worktree runs its own
+copy of the script. Only start branches you trust: the script runs with your
+user rights. A fresh worktree installs its dependencies on first run.
 The first time Claude sees a new worktree folder it asks whether to trust it. The
 script never answers that for you: it waits and tells you to run
 `bun run daemon:attach` in a terminal tab and choose **Yes, I trust this folder**.

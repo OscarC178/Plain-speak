@@ -10,6 +10,7 @@
     "url": "git+https://github.com/OscarC178/Plain-speak.git"
   },
   "scripts": {
+    "dev": "bash daemon/slipway-run.sh",
     "test": "bun test",
     "server": "bun run src/server.ts",
     "rules:check": "bun run src/cli.ts",
