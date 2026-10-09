@@ -6,6 +6,11 @@ enum Toast {
     private static var panel: NSPanel?
 
     static func show(_ text: String) {
+        // Debug launches also keep a record, so test scripts can see what the reader would see.
+        if let dir = ProcessInfo.processInfo.environment["PLAINSPEAK_SAVE_CAPTURES"],
+           let handle = FileHandle(forWritingAtPath: dir + "/toasts.log") ?? (FileManager.default.createFile(atPath: dir + "/toasts.log", contents: nil) ? FileHandle(forWritingAtPath: dir + "/toasts.log") : nil) {
+            handle.seekToEndOfFile(); handle.write(Data((text + "\n").utf8)); handle.closeFile()
+        }
         panel?.orderOut(nil)
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 15, weight: .medium)
