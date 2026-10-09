@@ -10,6 +10,22 @@ It helps with AI filler, awkward wording across languages, and spelling, swapped
 letters or missing words. It runs on **Claude Haiku 5.5** through your Claude Code
 subscription login. No API keys. macOS only.
 
+## Why use it
+
+Some messages take more work to read than they should. Plainspeak does that work
+on the screen you already have open.
+
+- **Get the point fast.** Long, padded or AI-written messages come back as the
+  point, what they want from you, the deadline and anything unclear.
+- **Read across languages.** Awkward wording from someone writing in a second
+  language is read for what they meant.
+- **Easier to read.** Short parts, bold labels and clear gaps between them,
+  following the British Dyslexia Association's style guide.
+- **Check your own writing.** Your drafts come back with spelling, swapped letters
+  and missing words fixed, in your own voice.
+- **You stay in control.** It reads only when you press a button. It never sends,
+  replies or edits anything for you.
+
 ## What it does
 
 **Read.** Point at a message and press the back side button. It captures the
@@ -72,12 +88,23 @@ The session can only show text in the overlay and read your notes. Shell
 commands, file edits and known messaging tools are denied in
 `daemon/claude-settings.json`.
 
-## Requirements
+## What you need
 
-- macOS with [Hammerspoon](https://www.hammerspoon.org/)
-- [Bun](https://bun.sh/) and [tmux](https://github.com/tmux/tmux) (`brew install tmux`)
-- [Claude Code](https://code.claude.com/docs) signed in with a Claude subscription
-- A mouse with side buttons, if you want the buttons rather than only hotkeys
+Install these before you start. The commands use [Homebrew](https://brew.sh/).
+
+| What | Why Plainspeak needs it | How to install |
+| --- | --- | --- |
+| macOS 13 or later | Claude Code needs it | - |
+| Xcode Command Line Tools | `git` to clone the repo, `python3` for the installer | `xcode-select --install` |
+| [Hammerspoon](https://www.hammerspoon.org/) | Watches the buttons and hotkeys, takes the screenshot, shows the panel | `brew install --cask hammerspoon` |
+| [Bun](https://bun.sh/) | Runs the small local service | `brew install oven-sh/bun/bun` |
+| [tmux](https://github.com/tmux/tmux) | Keeps the Claude session running in the background | `brew install tmux` |
+| [Claude Code](https://code.claude.com/docs/en/setup) | Runs Claude Haiku 5.5 on your plan | `brew install --cask claude-code` |
+| A Claude Pro, Max, Team or Enterprise plan | Plainspeak uses your plan, not an API key. The free plan has no Claude Code | Run `claude` once and sign in |
+| A mouse with side buttons (optional) | The quickest way to use it. Hotkeys work without one | - |
+
+Hammerspoon also needs two macOS permissions, **Accessibility** and **Screen
+Recording**. Step 3 of the setup covers them.
 
 Claude Code channels are a research preview. Team and Enterprise organisations
 must enable them. See [Claude channels](https://code.claude.com/docs/en/channels).
@@ -174,6 +201,58 @@ bun run uninstall:launchd
 
 launchd starts the session once. It does not restart it if Claude exits, and a
 fresh start still waits at the channel warning until you attach and accept it.
+
+## How to use it
+
+### Read a message
+
+1. Open the message in any app: Slack, Gmail, Teams or a web page.
+2. Put the pointer on the message you mean. Plainspeak explains that one and uses
+   the rest of the screen only as background.
+3. Press the **back** side button, or Control + Option + Command + R.
+4. A panel opens beside the pointer with up to four short parts: **The point**,
+   **They want**, **By** and **Unclear**. Parts that do not apply are left out.
+5. Click anywhere else, or press Escape, to close it. **Copy** keeps the text.
+
+### Fix the wording of someone else's message
+
+Point at it and press the **front** side button. You get the same message with
+spelling, grammar and word order fixed. Nothing is summarised.
+
+### Check your own draft before you send it
+
+1. Write your message as normal.
+2. Select the text.
+3. Press Control + Option + Command + D.
+4. The corrected version appears in the panel and is copied to your clipboard.
+5. Paste it over your draft, read it once, and send it yourself.
+
+### Bring in background from your notes
+
+Hold Command and press the back side button. Plainspeak also searches your
+Obsidian notes and Google Drive, and lists what it used. Use it for messages that
+assume you remember earlier work.
+
+### Which one to use
+
+| You want to | Use |
+| --- | --- |
+| Understand a long, vague or AI-written message | Back side button |
+| Read a message full of typos | Front side button |
+| Tidy your own reply before sending | Select it, then Control + Option + Command + D |
+| Understand a message that refers to earlier work | Command + back side button |
+
+### Good habits
+
+- Treat the panel as a reading aid, not the record. Check dates, numbers and
+  commitments in the original before you act.
+- When a part says **Unclear**, ask the sender rather than guess.
+- Point before you press. With several messages on screen, the pointer is how
+  Plainspeak knows which one you mean.
+- Do not capture anything you could not share with Anthropic. The screenshot goes
+  to Claude through your account.
+- Restart the session now and then (see [Run it](#run-it)). A long session is
+  slower and uses more of your plan.
 
 ## Configure
 
