@@ -9,7 +9,8 @@ import { buildTurn, SDK_SYSTEM } from './prompt';
 import { stateHome } from './paths';
 import { searchVault, vaultNote } from './vault';
 
-const root = resolve(import.meta.dir, '..');
+// Inside Plainspeak.app the page and default rules live in the bundle's Resources folder.
+const root = process.env.PLAINSPEAK_ROOT ?? resolve(import.meta.dir, '..');
 const state = stateHome();
 const port = Number(process.env.PLAINSPEAK_PORT ?? 8790);
 // Haiku 5.5 at high effort by default: the warm session leaves time to spare. Override per run.
@@ -27,7 +28,7 @@ const contextServers: Record<string, McpServerConfig> = typeof vault === 'string
 ] }) } : {};
 
 let service: Awaited<ReturnType<typeof createService>>;
-const engine = createEngine({ model, effort, system: SDK_SYSTEM, cwd: state, log, contextServers }, {
+const engine = createEngine({ model, effort, system: SDK_SYSTEM, cwd: state, log, contextServers, claudePath: process.env.PLAINSPEAK_CLAUDE }, {
   progress: (id, text) => service.progress(id, text),
   done: (id, text) => service.show(id, text),
   fail: (id, message) => service.fail(id, message),
@@ -42,4 +43,8 @@ try {
 engine.start();
 log(`Plainspeak listening on http://127.0.0.1:${service.server.port} (${model}, ${effort} effort${vault ? ', Obsidian vault connected' : ''}). Control+C stops it.`);
 
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => { engine.close(); void service.close().then(() => process.exit(0)); });
+const stop = () => { engine.close(); void service.close().then(() => process.exit(0)); };
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop);
+// Started by Plainspeak.app: exit if the app is gone, so a crash never leaves port 8790 taken.
+const parent = Number(process.env.PLAINSPEAK_PARENT_PID);
+if (parent) setInterval(() => { try { process.kill(parent, 0); } catch { log('Plainspeak.app has quit; stopping.'); stop(); } }, 2000);

@@ -31,3 +31,9 @@ test('SDK turns carry the same rules without the channel tool instructions',()=>
  expect(turn).not.toContain('capture_image');
  expect(turn).not.toContain('show tool');
 });
+test('a marked pointer sends Claude to the ring drawn on the screenshot',()=>{
+ const cap={app:'Slack',title:'general - Slack',mode:'read' as const,image:'/tmp/x.png',pointer:{x:0.43,y:0.3,marked:true}};
+ const prompt=buildTurn(cap,resolve(rules,cap));
+ expect(prompt).toContain('marked with a pink ring');
+ expect(prompt).toContain('The ring is not part of the message');
+});

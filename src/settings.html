@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plainspeak settings</title>
+<style>
+/* Same look as the panel, and the same reading rules: sans serif, 1.6 line spacing, short blocks with clear gaps, bold not italics. */
+:root{color-scheme:dark;--bg:#141b22;--card:#1b242d;--field:#0f151b;--line:#3c4851;--text:#eceee9;--muted:#a6bab3;--accent:#b7f3a3;--bad:#ffb4a8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 system-ui,sans-serif;letter-spacing:.02em;word-spacing:.06em}
+main{max-width:780px;margin:0 auto;padding:24px 28px 60px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;position:sticky;top:0;background:var(--bg);padding:12px 0;border-bottom:1px solid var(--line);z-index:2}
+.brand{font-weight:700}.brand span{color:var(--accent)}#status{font-size:14px;color:var(--muted)}#status.ok{color:var(--accent)}#status.bad{color:var(--bad)}
+h2{font-size:20px;margin:36px 0 4px}p.help{margin:0 0 14px;color:var(--muted);font-size:15px}
+.choices{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.choice{display:block;background:var(--card);border:2px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer}
+.choice:has(input:checked){border-color:var(--accent)}.choice input{margin:0 8px 0 0;accent-color:var(--accent)}
+.choice b{font-weight:600}.choice small{display:block;color:var(--muted);font-size:14px;line-height:1.45;margin-top:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card.off{opacity:.55}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px 14px}
+.part{margin-top:14px}.part h3{margin:0 0 6px;font-size:15px;color:var(--accent);font-weight:600}
+label.field{display:block;font-size:14px;color:var(--muted)}label.field>*{margin-top:3px}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--field);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit;font-size:16px;letter-spacing:.01em}
+textarea{min-height:76px;resize:vertical}input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.grow{flex:1;min-width:180px}input.short{width:84px}
+button{background:transparent;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:15px;cursor:pointer}
+button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}button.remove{color:var(--bad);border-color:transparent}
+.note{font-size:14px;color:var(--muted);margin:8px 0 0}.note.warn{color:var(--bad)}
+</style>
+<main>
+<header><div><span class="brand">plainspeak<span>.</span></span> settings</div><div id="status" role="status">Loading…</div></header>
+
+<h2>When I read a message</h2><p class="help">How the panel explains a message (back side button).</p><div class="choices" id="read"></div>
+<h2>When I correct my own draft</h2><p class="help">How your selected text is rewritten (Control + Option + Command + D).</p><div class="choices" id="draft"></div>
+<h2>Answer length</h2><p class="help">An upper limit. Styles are usually shorter.</p>
+<label class="row">Use at most <input type="number" class="short" id="max_lines" min="1" max="30"> lines</label>
+
+<h2>My custom styles</h2><p class="help">Describe in plain words how you want answers to look. Saved styles appear in the lists above.</p>
+<div id="custom"></div><button class="add" id="add-custom">+ Add a custom style</button>
+
+<h2>Rules for particular places or people</h2>
+<p class="help">Use a different style for one app, channel or person. Who wrote a message is matched by Claude from the screenshot, so it is best effort.</p>
+<div id="rules"></div><button class="add" id="add-rule">+ Add a rule</button>
+<p class="note">Changes save by themselves and apply from your next capture.</p>
+<datalist id="apps"><option>Slack</option><option>Gmail</option><option>Mail</option><option>Microsoft Teams</option><option>Microsoft Outlook</option><option>Google Chrome</option><option>Safari</option><option>Arc</option><option>Messages</option><option>WhatsApp</option></datalist>
+</main>
+<script>
+// The token arrives in the fragment, which is never sent to the server, then leaves the address bar.
+const token=new URLSearchParams(location.hash.slice(1)).get('token');history.replaceState(null,'',location.pathname);
+let model,styles,timer;
+const statusEl=document.getElementById('status');
+const status=(text,kind='')=>{statusEl.textContent=text;statusEl.className=kind};
+async function api(method,body){
+ const r=await fetch('/settings',{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body&&JSON.stringify(body)});
+ const data=await r.json();if(!r.ok)throw Error(data.error||'Plainspeak is not responding');return data;
+}
+// Builds elements safely: text is always set as text, never parsed as HTML.
+function el(tag,props={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(props)){if(k==='class')e.className=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(k in e)e[k]=v;else e.setAttribute(k,v)}e.append(...kids.filter(k=>k!=null&&k!==false));return e}
+const newId=prefix=>prefix+'-'+Math.random().toString(36).slice(2,10);
+const complete=c=>c.name.trim()&&c.instructions.trim();
+
+// Saves half a second after the last change. Unfinished custom styles wait until they have a name and a description.
+function save(){
+ status('Saving…');clearTimeout(timer);
+ timer=setTimeout(async()=>{
+  try{const data=await api('PUT',{...model,custom_styles:model.custom_styles.filter(complete)});styles=data.styles;renderChoices();refreshSelects();status('Saved. Used from your next capture.','ok')}
+  catch(e){status('Not saved: '+e.message,'bad')}
+ },500);
+}
+
+function renderChoices(){
+ for(const kind of['read','draft']){
+  const box=document.getElementById(kind);box.replaceChildren();
+  for(const s of styles[kind])box.append(el('label',{class:'choice'},
+   el('input',{type:'radio',name:kind,checked:model[kind+'_style']===s.id,onchange:()=>{model[kind+'_style']=s.id;save()}}),
+   el('b',{textContent:s.name}),el('small',{textContent:s.description})));
+ }
+}
+
+function renderCustom(){
+ const box=document.getElementById('custom');box.replaceChildren();
+ for(const c of model.custom_styles){
+  const note=el('p',{class:'note',textContent:complete(c)?'':'Give it a name and a description to save it.'});
+  const touch=()=>{note.textContent=complete(c)?'':'Give it a name and a description to save it.';save()};
+  box.append(el('div',{class:'card'},
+   el('div',{class:'row'},
+    el('label',{class:'field grow'},'Name',el('input',{type:'text',value:c.name,placeholder:'For example: Short for Slack',maxLength:60,oninput:e=>{c.name=e.target.value;touch()}})),
+    el('label',{class:'field'},'Used for',el('select',{onchange:e=>{c.kind=e.target.value;clearUses(c.id);touch()}},
+     el('option',{value:'read',textContent:'Reading messages',selected:c.kind==='read'}),el('option',{value:'draft',textContent:'My drafts',selected:c.kind==='draft'}))),
+    el('button',{class:'remove',textContent:'Delete',onclick:()=>{model.custom_styles=model.custom_styles.filter(x=>x!==c);clearUses(c.id);renderCustom();renderRules();save()}})),
+   el('label',{class:'field part'},'How answers should look',el('textarea',{value:c.instructions,placeholder:'For example: Lead with what I need to do. Use short bullet points. Keep it under three lines.',maxLength:4000,oninput:e=>{c.instructions=e.target.value;touch()}})),
+   note));
+ }
+}
+
+// A deleted or re-purposed custom style must not stay selected anywhere.
+function clearUses(id){
+ if(model.read_style===id)model.read_style='plain';if(model.draft_style===id)model.draft_style='clean';
+ for(const r of model.rules){if(r.read_style===id)r.read_style='';if(r.draft_style===id)r.draft_style=''}
+}
+
+function styleSelect(r,kind){
+ const s=el('select',{'data-kind':kind,onchange:e=>{r[kind+'_style']=e.target.value;save()}});fill(s,kind,r[kind+'_style']);return s;
+}
+function fill(select,kind,value){
+ const list=[{id:'',name:'Keep my usual style'},...styles[kind]];
+ select.replaceChildren(...list.map(s=>el('option',{value:s.id,textContent:s.name,selected:s.id===value})));
+}
+function refreshSelects(){for(const s of document.querySelectorAll('select[data-kind]'))fill(s,s.dataset.kind,s.value)}
+
+function renderRules(){
+ const box=document.getElementById('rules');box.replaceChildren();
+ for(const r of model.rules){
+  const conditions=()=>['app','channel','title','person','sender_domain','thread'].some(k=>r[k].trim());
+  const warn=el('p',{class:'note warn'});
+  const check=()=>{warn.textContent=conditions()?'':'This rule applies everywhere until you add a "When" or "From" condition.'};check();
+  const text=(key,label,placeholder,extra={})=>el('label',{class:'field'},label,el('input',{type:'text',value:r[key],placeholder,maxLength:300,...extra,oninput:e=>{r[key]=e.target.value;check();save()}}));
+  const card=el('div',{class:'card'+(r.enabled?'':' off')});
+  card.append(
+   el('div',{class:'row'},
+    el('label',{class:'row'},el('input',{type:'checkbox',checked:r.enabled,onchange:e=>{r.enabled=e.target.checked;card.classList.toggle('off',!r.enabled);save()}}),'On'),
+    el('input',{type:'text',class:'grow',value:r.name,placeholder:'Rule name, for example: Client X channel',maxLength:80,oninput:e=>{r.name=e.target.value;save()}}),
+    el('button',{class:'remove',textContent:'Delete',onclick:()=>{model.rules=model.rules.filter(x=>x!==r);renderRules();save()}})),
+   el('div',{class:'part'},el('h3',{textContent:'When'}),el('div',{class:'grid'},
+    text('app','App','Any app',{list:'apps'}),text('channel','Slack channel or email subject','For example: client-x'),text('title','Window title contains','Any title'))),
+   el('div',{class:'part'},el('h3',{textContent:'From'}),el('div',{class:'grid'},
+    text('person','Person, as their name appears','Anyone'),text('sender_domain','Email domain','For example: client.example.com'),text('thread','A thread, described','For example: the launch checklist'))),
+   el('div',{class:'part'},el('h3',{textContent:'Then'}),el('div',{class:'grid'},
+    el('label',{class:'field'},'Reading style',styleSelect(r,'read')),
+    el('label',{class:'field'},'Draft style',styleSelect(r,'draft')),
+    el('label',{class:'field'},'About the sender',el('select',{onchange:e=>{r.sender=e.target.value;save()}},
+     el('option',{value:'',textContent:'Nothing set',selected:!r.sender}),...styles.senders.map(s=>el('option',{value:s.id,textContent:s.name,selected:r.sender===s.id})))),
+    el('label',{class:'field'},'At most this many lines',el('input',{type:'number',min:1,max:30,value:r.max_lines??'',placeholder:'Usual',oninput:e=>{const n=parseInt(e.target.value,10);r.max_lines=Number.isFinite(n)?n:null;save()}}))),
+    el('label',{class:'field part'},'Extra instructions',el('textarea',{value:r.instructions,placeholder:'For example: keep the decision, the owner and the deadline.',maxLength:4000,oninput:e=>{r.instructions=e.target.value;save()}})),
+    el('label',{class:'field part'},'Background for Claude',el('textarea',{value:r.notes,placeholder:'For example: job numbers refer to the render farm, not to people.',maxLength:2000,oninput:e=>{r.notes=e.target.value;save()}}))),
+   warn);
+  box.append(card);
+ }
+}
+
+document.getElementById('max_lines').addEventListener('input',e=>{const n=parseInt(e.target.value,10);if(n>=1&&n<=30){model.max_lines=n;save()}});
+document.getElementById('add-custom').onclick=()=>{model.custom_styles.push({id:newId('custom'),kind:'read',name:'',instructions:''});renderCustom()};
+document.getElementById('add-rule').onclick=()=>{model.rules.push({id:newId('rule'),name:'',enabled:true,app:'',channel:'',title:'',person:'',sender_domain:'',thread:'',read_style:'',draft_style:'',sender:'',max_lines:null,instructions:'',notes:''});renderRules()};
+
+if(!token)status('Open settings from the Plainspeak menu.','bad');
+else api('GET').then(data=>{model=data.settings;styles=data.styles;document.getElementById('max_lines').value=model.max_lines;renderChoices();renderCustom();renderRules();status('Changes save by themselves.')}).catch(e=>status('Could not load settings: '+e.message,'bad'));
+</script></html>

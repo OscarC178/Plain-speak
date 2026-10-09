@@ -2,14 +2,14 @@ import { mkdir, chmod, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { loadRules, resolve, type Capture, type Resolved } from './rules';
-import { rulesFile } from './paths';
+import { resolve, type Capture, type Resolved } from './rules';
+import { catalogue, loadSettings, saveSettings, SettingsError, toRulesFile } from './settings';
 
 const input = z.object({
   app: z.string().max(200), title: z.string().max(2000), mode: z.enum(['read', 'correct', 'draft']),
   text: z.string().max(40000).optional(), image_base64: z.string().max(8_000_000).optional(),
   context: z.boolean().optional(),
-  pointer: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict().optional(),
+  pointer: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), marked: z.boolean().optional() }).strict().optional(),
 }).strict().refine(v => v.text?.trim() || v.image_base64, 'Capture needs text or a PNG');
 /** One capture handed to an engine. Each engine builds its own prompt from it. */
 export type Job = { cap: Capture & { context?: boolean }; rules: Resolved; image?: Buffer };
@@ -25,9 +25,6 @@ export async function createService(root: string, notify: (id: string, job: Job)
   else { token = randomBytes(32).toString('hex'); await Bun.write(tokenPath, token); }
   await chmod(tokenPath, 0o600);
   const pending = new Map<string, Result & { image?: string }>();
-  const rulesPath = await rulesFile(root, local);
-  // Reload each request: a malformed edit rejects the request instead of silently using stale rules.
-  await loadRules(rulesPath);
   const removeImage = async (item: { image?: string }) => { if (item.image) { await unlink(item.image).catch(() => {}); item.image = undefined; } };
   const clean = setInterval(() => {
     for (const [id, item] of pending) {
@@ -47,8 +44,10 @@ export async function createService(root: string, notify: (id: string, job: Job)
       const origin = req.headers.get('origin');
       if (origin && origin !== `http://127.0.0.1:${server.port}`) return json({ error: 'Invalid origin' }, 403);
       if (req.method === 'GET' && url.pathname === '/health') return json({ service: 'plainspeak', transport: 'connected', pending: [...pending.values()].filter(v => v.state === 'pending').length });
-      if (req.method === 'GET' && url.pathname === '/overlay') {
-        return new Response(await Bun.file(join(root, 'src/overlay.html')).text(), { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'" } });
+      // The panel and the settings window are pages; their credentials arrive in the URL fragment.
+      const page = { '/overlay': 'src/overlay.html', '/settings-page': 'src/settings.html' }[url.pathname];
+      if (req.method === 'GET' && page) {
+        return new Response(await Bun.file(join(root, page)).text(), { headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'" } });
       }
       if (req.headers.get('authorization') !== `Bearer ${token}`) return json({ error: 'Unauthorised' }, 401);
       try {
@@ -57,7 +56,15 @@ export async function createService(root: string, notify: (id: string, job: Job)
           if (!item) return json({ error: 'Unknown or expired request' }, 404);
           const { image, ...publicItem } = item; return json(publicItem);
         }
-        if (req.method === 'GET' && url.pathname === '/rules') return json(resolve(await loadRules(rulesPath), { app: url.searchParams.get('app') ?? '', title: url.searchParams.get('title') ?? '', mode: 'read' }));
+        if (url.pathname === '/settings') {
+          if (req.method === 'GET') { const settings = await loadSettings(local); return json({ settings, styles: catalogue(settings) }); }
+          if (req.method !== 'PUT') return json({ error: 'Not found' }, 404);
+          if (!(req.headers.get('content-type') ?? '').startsWith('application/json')) return json({ error: 'Expected JSON' }, 415);
+          const body = await req.text();
+          if (body.length > 200_000) return json({ error: 'Settings too large' }, 413);
+          try { const settings = await saveSettings(local, JSON.parse(body)); return json({ settings, styles: catalogue(settings) }); }
+          catch (e) { return json({ error: e instanceof SettingsError ? e.message : 'Settings were not valid JSON' }, 400); }
+        }
         if (req.method !== 'POST' || url.pathname !== '/capture') return json({ error: 'Not found' }, 404);
         if (Number(req.headers.get('content-length')) > 8_100_000) return json({ error: 'Capture too large' }, 413);
         if (!(req.headers.get('content-type') ?? '').startsWith('application/json')) return json({ error: 'Expected JSON' }, 415);
@@ -68,7 +75,7 @@ export async function createService(root: string, notify: (id: string, job: Job)
         const cap = input.parse(JSON.parse(Buffer.concat(chunks).toString()));
         if ([...pending.values()].some(v => v.state === 'pending')) return json({ error: 'A capture is already processing. Wait for its result.' }, 429);
         if (cap.mode === 'draft' && !cap.text?.trim()) return json({ error: 'Select your own draft text before using the draft hotkey.' }, 400);
-        const rules = resolve(await loadRules(rulesPath), cap);
+        const rules = resolve(toRulesFile(await loadSettings(local)), cap);
         const id = crypto.randomUUID();
         const item: Result & { image?: string } = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now() };
         let bytes: Buffer | undefined;

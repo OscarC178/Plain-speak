@@ -24,3 +24,9 @@ video/out/
 videos/**/.hyperframes/
 videos/**/.thumbnails/
 videos/**/renders/
+
+# Plainspeak.app build output and Swift build cache
+build/
+app/.build/
+# Temporary files bun build --compile leaves behind if interrupted
+*.bun-build

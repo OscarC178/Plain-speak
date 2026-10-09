@@ -14,7 +14,6 @@
     "start": "bash daemon/run.sh",
     "test": "bun test",
     "server": "bun run src/server.ts",
-    "rules:check": "bun run src/cli.ts",
     "daemon:start": "bash daemon/start.sh",
     "daemon:stop": "bash daemon/stop.sh",
     "daemon:attach": "bash daemon/attach.sh",

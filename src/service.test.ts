@@ -1,16 +1,14 @@
 import { test, expect, afterEach } from 'bun:test';
-import { mkdtemp, mkdir, cp, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createService } from './service';
-import { loadRules } from './rules';
 import { buildPrompt } from './prompt';
 let services: Awaited<ReturnType<typeof createService>>[] = [];
 let dirs: string[] = [];
 afterEach(async () => { for (const s of services) await s.close(); services = []; for (const d of dirs) await rm(d, { recursive: true, force: true }); dirs = []; });
 async function fixture(notify: (id: string, prompt: string) => Promise<void> = async () => {}) {
   const root = await mkdtemp(join(tmpdir(), 'plainspeak-test-')); dirs.push(root);
-  await mkdir(join(root, 'rules')); await cp('rules/rules.example.yaml',join(root,'rules/rules.example.yaml'));
   const service = await createService(root,(id,job)=>notify(id,buildPrompt(id,job.cap,job.rules)),0); services.push(service);
   const url = `http://127.0.0.1:${service.server.port}`;
   const post = (body: unknown, secret = service.token, origin?: string) => fetch(url+'/capture',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`,...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
@@ -52,10 +50,20 @@ test('PNG tool returns image only for the active request and deletes it after sh
   await f.service.show(request_id,'Done'); expect(await Bun.file(path).exists()).toBe(false);
   await expect(f.service.image(request_id)).rejects.toThrow();
 });
-test('invalid rule line limits and profiles fail before processing',async()=>{
-  const f=await fixture(); const path=join(f.root,'rules/rules.example.yaml');
-  await Bun.write(path,'defaults: {max_lines: -1, read_instructions: read, draft_instructions: draft}');
-  await expect(loadRules(path)).rejects.toThrow('max_lines');
+test('settings are read, validated and saved, and the next capture uses them',async()=>{
+ let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});
+ const auth={Authorization:'Bearer '+f.service.token};
+ const got=await (await fetch(f.url+'/settings',{headers:auth})).json();
+ expect(got.settings.read_style).toBe('plain');
+ expect(got.styles.read.map((s:{id:string})=>s.id)).toContain('adhd');
+ const put=(body:unknown,headers:Record<string,string>=auth)=>fetch(f.url+'/settings',{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ expect((await put({...got.settings,read_style:'adhd'},{})).status).toBe(401);
+ expect((await put({...got.settings,read_style:'adhd'},{...auth,Origin:'https://evil.example'})).status).toBe(403);
+ const bad=await put({...got.settings,read_style:'nonsense'});
+ expect(bad.status).toBe(400); expect((await bad.json()).error).toContain('reading style no longer exists');
+ expect((await put({...got.settings,read_style:'adhd'})).status).toBe(200);
+ expect((await f.post(capture)).status).toBe(202);
+ expect(prompt).toContain('Do this: the one thing the reader needs to do');
 });
 
 test('correction reads incoming text without draft selection requirements',async()=>{

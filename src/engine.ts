@@ -16,6 +16,8 @@ export type Sink = {
 export type EngineOptions = {
   model: string; effort: Options['effort']; system: string; cwd: string;
   recycleAfter?: number; log?: (line: string) => void;
+  /** The Claude binary shipped inside Plainspeak.app; the SDK finds its own copy otherwise. */
+  claudePath?: string;
   /** In-process tools for context lookups, such as the Obsidian vault search. */
   contextServers?: Record<string, McpServerConfig>;
 };
@@ -73,7 +75,7 @@ export function createEngine(o: EngineOptions, sink: Sink, query = sdkQuery) {
       model: o.model, effort: o.effort, systemPrompt: o.system,
       // No built-in tools, and nothing from disk (settings, CLAUDE.md, MCP servers): only what Plainspeak passes.
       tools: [], settingSources: [], mcpServers: {}, strictMcpConfig: true,
-      includePartialMessages: true, persistSession: false, cwd: o.cwd, env,
+      includePartialMessages: true, persistSession: false, cwd: o.cwd, env, pathToClaudeCodeExecutable: o.claudePath,
     } });
     s.push(userTurn(WARM_UP));
     void (async () => {
@@ -121,7 +123,7 @@ export function createEngine(o: EngineOptions, sink: Sink, query = sdkQuery) {
         model: o.model, effort: o.effort, systemPrompt: o.system, tools: [],
         settingSources: ['user'], mcpServers: o.contextServers ?? {},
         permissionMode: 'dontAsk', allowedTools: CONTEXT_TOOLS, hooks: { PreToolUse: [{ hooks: [onlyContextTools] }] },
-        maxTurns: 12, includePartialMessages: true, persistSession: false, cwd: o.cwd, env,
+        maxTurns: 12, includePartialMessages: true, persistSession: false, cwd: o.cwd, env, pathToClaudeCodeExecutable: o.claudePath,
       } })) {
         if (m.type === 'assistant') for (const b of m.message.content) { if (b.type === 'tool_use') used.push(b.name.replace(/^mcp__/, '')); }
         if (m.type === 'stream_event' && m.event.type === 'message_start') partial = '';
