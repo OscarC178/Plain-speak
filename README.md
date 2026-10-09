@@ -205,7 +205,10 @@ Mouse button IDs are stored in `~/.hammerspoon/plainspeak-mouse.json`.
 ### Rules
 
 Rules adapt the output per app, channel, person or thread. Changes are read on
-the next capture. Invalid YAML, unknown profiles or bad line limits fail visibly.
+the next capture.
+
+![Illustration: a per-person rule clarifying awkward wording](docs/images/rules.png)
+ Invalid YAML, unknown profiles or bad line limits fail visibly.
 The example includes `ai-drivel`, `esl` and `dyslexic` profiles. Assign a profile
 only when you know it fits; Plainspeak does not diagnose anyone.
 
