@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Plainspeak icon: a geometric "p." echoing the "plainspeak." wordmark in the panel.
+       Drawn with shapes rather than a font so it renders the same everywhere.
+       Render: rsvg-convert -w 1024 -h 1024 assets/icon.svg -o assets/icon.png -->
+  <rect width="1024" height="1024" rx="228" fill="#141b22"/>
+  <g transform="translate(-40 -30)">
+    <!-- stem of the p -->
+    <rect x="254" y="254" width="92" height="576" rx="46" fill="#eceee9"/>
+    <!-- bowl of the p -->
+    <circle cx="470" cy="470" r="170" fill="none" stroke="#eceee9" stroke-width="92"/>
+    <!-- the full stop, in the panel's green -->
+    <circle cx="788" cy="624" r="62" fill="#b7f3a3"/>
+  </g>
+</svg>

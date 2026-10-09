@@ -1,7 +1,7 @@
 {
   "name": "plainspeak",
   "version": "0.1.0",
-  "description": "Plain-English overlay for macOS. Press a mouse side button to read or correct a message with Claude Haiku 5.5 on your Claude Code subscription. No API keys.",
+  "description": "A macOS menu bar app that explains messages in plain English and corrects your drafts, using Claude Haiku 5.5 on your Claude plan. No API keys.",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -10,21 +10,14 @@
     "url": "git+https://github.com/OscarC178/Plain-speak.git"
   },
   "scripts": {
-    "dev": "bash daemon/slipway-run.sh",
+    "app": "bash scripts/build-app.sh --install",
+    "dev": "bash scripts/dev.sh",
     "test": "bun test",
-    "server": "bun run src/server.ts",
-    "rules:check": "bun run src/cli.ts",
-    "daemon:start": "bash daemon/start.sh",
-    "daemon:stop": "bash daemon/stop.sh",
-    "daemon:attach": "bash daemon/attach.sh",
-    "daemon:status": "bash daemon/status.sh",
-    "install:hammerspoon": "bash scripts/install-hammerspoon.sh",
-    "install:launchd": "bash scripts/install-launchd.sh",
-    "uninstall:launchd": "bash scripts/uninstall-launchd.sh",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.295",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

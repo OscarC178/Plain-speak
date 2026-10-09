@@ -1,16 +1,16 @@
 import { test, expect, afterEach } from 'bun:test';
-import { mkdtemp, mkdir, cp, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createService } from './service';
-import { loadRules } from './rules';
+import { buildTurn } from './prompt';
+import type { Job } from './service';
 let services: Awaited<ReturnType<typeof createService>>[] = [];
 let dirs: string[] = [];
 afterEach(async () => { for (const s of services) await s.close(); services = []; for (const d of dirs) await rm(d, { recursive: true, force: true }); dirs = []; });
-async function fixture(notify: (id: string, prompt: string) => Promise<void> = async () => {}) {
+async function fixture(notify: (id: string, prompt: string, job: Job) => Promise<void> = async () => {}) {
   const root = await mkdtemp(join(tmpdir(), 'plainspeak-test-')); dirs.push(root);
-  await mkdir(join(root, 'rules')); await cp('rules/rules.example.yaml',join(root,'rules/rules.example.yaml'));
-  const service = await createService(root,notify,0); services.push(service);
+  const service = await createService(root,(id,job)=>notify(id,buildTurn(job.cap,job.rules),job),0); services.push(service);
   const url = `http://127.0.0.1:${service.server.port}`;
   const post = (body: unknown, secret = service.token, origin?: string) => fetch(url+'/capture',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`,...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
   return {root,service,url,post};
@@ -42,19 +42,28 @@ test('draft requires selection and HTTP cannot supply arbitrary filesystem paths
   expect((await f.post({...capture,image:'/etc/passwd'})).status).toBe(400);
   expect((await f.post({...capture,image_base64:'c2VjcmV0'})).status).toBe(400);
 });
-test('PNG tool returns image only for the active request and deletes it after showing',async()=>{
-  const f=await fixture();
+test('screenshots reach the engine in memory and are never written to disk',async()=>{
+  let job: Job | undefined; const f=await fixture(async(_,__,j)=>{job=j});
   const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
-  const r=await f.post({...capture,image_base64:png}); const {request_id}=await r.json();
-  expect(Buffer.from(await f.service.image(request_id)).toString('base64')).toBe(png);
-  const path=join(f.root,'.local',request_id+'.png'); expect(await Bun.file(path).exists()).toBe(true);
-  await f.service.show(request_id,'Done'); expect(await Bun.file(path).exists()).toBe(false);
-  await expect(f.service.image(request_id)).rejects.toThrow();
+  const r=await f.post({...capture,image_base64:png}); expect(r.status).toBe(202);
+  expect(job?.image?.toString('base64')).toBe(png);
+  expect(job?.cap.image).toBe(true);
+  expect((await Array.fromAsync(new Bun.Glob('**/*.png').scan(f.root))).length).toBe(0);
 });
-test('invalid rule line limits and profiles fail before processing',async()=>{
-  const f=await fixture(); const path=join(f.root,'rules/rules.example.yaml');
-  await Bun.write(path,'defaults: {max_lines: -1, read_instructions: read, draft_instructions: draft}');
-  await expect(loadRules(path)).rejects.toThrow('max_lines');
+test('settings are read, validated and saved, and the next capture uses them',async()=>{
+ let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});
+ const auth={Authorization:'Bearer '+f.service.token};
+ const got=await (await fetch(f.url+'/settings',{headers:auth})).json();
+ expect(got.settings.read_style).toBe('plain');
+ expect(got.styles.read.map((s:{id:string})=>s.id)).toContain('adhd');
+ const put=(body:unknown,headers:Record<string,string>=auth)=>fetch(f.url+'/settings',{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
+ expect((await put({...got.settings,read_style:'adhd'},{})).status).toBe(401);
+ expect((await put({...got.settings,read_style:'adhd'},{...auth,Origin:'https://evil.example'})).status).toBe(403);
+ const bad=await put({...got.settings,read_style:'nonsense'});
+ expect(bad.status).toBe(400); expect((await bad.json()).error).toContain('reading style no longer exists');
+ expect((await put({...got.settings,read_style:'adhd'})).status).toBe(200);
+ expect((await f.post(capture)).status).toBe(202);
+ expect(prompt).toContain('Do this: the one thing the reader needs to do');
 });
 
 test('correction reads incoming text without draft selection requirements',async()=>{
@@ -64,4 +73,31 @@ test('correction reads incoming text without draft selection requirements',async
  await f.service.show(request_id,'Please check the review.');
  const result=await fetch(f.url+'/result/'+request_id,{headers:{Authorization:'Bearer '+f.service.token}});
  expect((await result.json()).mode).toBe('correct');
+});
+
+test('pointer is accepted inside the window and rejected outside 0 to 1',async()=>{
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
+ let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});
+ expect((await f.post({...capture,image_base64:png,pointer:{x:1.5,y:0.2}})).status).toBe(400);
+ expect((await f.post({...capture,image_base64:png,pointer:{x:0.2,y:0.8}})).status).toBe(202);
+ expect(prompt).toContain('about 20% across and 80% down');
+});
+
+test('partial text is visible while pending, and an engine failure ends the request',async()=>{
+ const f=await fixture(); const read=async(id:string)=>(await fetch(f.url+'/result/'+id,{headers:{Authorization:'Bearer '+f.service.token}})).json();
+ const {request_id}=await (await f.post(capture)).json();
+ f.service.progress(request_id,'The point: Send');
+ expect(await read(request_id)).toMatchObject({state:'pending',text:'The point: Send'});
+ await f.service.fail(request_id,'The Claude session stopped before answering. Try again.');
+ expect(await read(request_id)).toMatchObject({state:'error',text:'The Claude session stopped before answering. Try again.'});
+ expect((await f.post(capture)).status).toBe(202);
+});
+
+test('each answer carries the panel colours chosen in settings',async()=>{
+ const f=await fixture(); const auth={Authorization:'Bearer '+f.service.token};
+ const read=async()=>{const {request_id}=await (await f.post(capture)).json(); const r=await (await fetch(f.url+'/result/'+request_id,{headers:auth})).json(); await f.service.show(request_id,'ok'); return r.theme;};
+ expect(await read()).toBe('light');
+ const {settings}=await (await fetch(f.url+'/settings',{headers:auth})).json();
+ await fetch(f.url+'/settings',{method:'PUT',headers:{...auth,'Content-Type':'application/json'},body:JSON.stringify({...settings,theme:'dark'})});
+ expect(await read()).toBe('dark');
 });
