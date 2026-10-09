@@ -1,5 +1,5 @@
-// Plainspeak on the Agent SDK: the local service plus one warm Claude session.
-// Start with `bun run start`. No tmux, no channels and no first-run prompts.
+// The Plainspeak service: the local HTTP service plus one warm Claude session.
+// Plainspeak.app starts it; for development run `bun src/main.ts` with the app quit.
 import { resolve } from 'node:path';
 import { createSdkMcpServer, tool, type McpServerConfig, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod/v4'; // the SDK's tool() takes zod 4 schemas
@@ -37,11 +37,11 @@ try {
   service = await createService(root, async (id, job) => engine.submit(id, buildTurn(job.cap, job.rules), job.image, job.cap.context), port, state);
 } catch (e) {
   if ((e as { code?: string }).code !== 'EADDRINUSE') throw e;
-  console.error(`Port ${port} is already in use. If the old tmux daemon is running, stop it with: bun run daemon:stop`);
+  console.error(`Port ${port} is already in use. Another copy of Plainspeak is running: quit it from its menu.`);
   process.exit(1);
 }
 engine.start();
-log(`Plainspeak listening on http://127.0.0.1:${service.server.port} (${model}, ${effort} effort${vault ? ', Obsidian vault connected' : ''}). Control+C stops it.`);
+log(`Plainspeak listening on http://127.0.0.1:${service.server.port} (${model}, ${effort} effort${vault ? ', Obsidian vault connected' : ''}).`);
 
 const stop = () => { engine.close(); void service.close().then(() => process.exit(0)); };
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, stop);

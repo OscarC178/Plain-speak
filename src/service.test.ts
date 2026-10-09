@@ -3,13 +3,14 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createService } from './service';
-import { buildPrompt } from './prompt';
+import { buildTurn } from './prompt';
+import type { Job } from './service';
 let services: Awaited<ReturnType<typeof createService>>[] = [];
 let dirs: string[] = [];
 afterEach(async () => { for (const s of services) await s.close(); services = []; for (const d of dirs) await rm(d, { recursive: true, force: true }); dirs = []; });
-async function fixture(notify: (id: string, prompt: string) => Promise<void> = async () => {}) {
+async function fixture(notify: (id: string, prompt: string, job: Job) => Promise<void> = async () => {}) {
   const root = await mkdtemp(join(tmpdir(), 'plainspeak-test-')); dirs.push(root);
-  const service = await createService(root,(id,job)=>notify(id,buildPrompt(id,job.cap,job.rules)),0); services.push(service);
+  const service = await createService(root,(id,job)=>notify(id,buildTurn(job.cap,job.rules),job),0); services.push(service);
   const url = `http://127.0.0.1:${service.server.port}`;
   const post = (body: unknown, secret = service.token, origin?: string) => fetch(url+'/capture',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`,...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
   return {root,service,url,post};
@@ -41,14 +42,13 @@ test('draft requires selection and HTTP cannot supply arbitrary filesystem paths
   expect((await f.post({...capture,image:'/etc/passwd'})).status).toBe(400);
   expect((await f.post({...capture,image_base64:'c2VjcmV0'})).status).toBe(400);
 });
-test('PNG tool returns image only for the active request and deletes it after showing',async()=>{
-  const f=await fixture();
+test('screenshots reach the engine in memory and are never written to disk',async()=>{
+  let job: Job | undefined; const f=await fixture(async(_,__,j)=>{job=j});
   const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
-  const r=await f.post({...capture,image_base64:png}); const {request_id}=await r.json();
-  expect(Buffer.from(await f.service.image(request_id)).toString('base64')).toBe(png);
-  const path=join(f.root,'.local',request_id+'.png'); expect(await Bun.file(path).exists()).toBe(true);
-  await f.service.show(request_id,'Done'); expect(await Bun.file(path).exists()).toBe(false);
-  await expect(f.service.image(request_id)).rejects.toThrow();
+  const r=await f.post({...capture,image_base64:png}); expect(r.status).toBe(202);
+  expect(job?.image?.toString('base64')).toBe(png);
+  expect(job?.cap.image).toBe(true);
+  expect((await Array.fromAsync(new Bun.Glob('**/*.png').scan(f.root))).length).toBe(0);
 });
 test('settings are read, validated and saved, and the next capture uses them',async()=>{
  let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});

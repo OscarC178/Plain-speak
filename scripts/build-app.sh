@@ -12,7 +12,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 cd "$ROOT"
-for tool in bun swift rsvg-convert iconutil codesign; do
+for tool in bun swift codesign; do
   command -v "$tool" >/dev/null || { echo "Missing $tool. See \"Build the app\" in the README." >&2; exit 1; }
 done
 
@@ -37,16 +37,7 @@ cp node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude "$R/claude"
 cp src/overlay.html src/settings.html "$R/service/src/"
 
 echo '3/5 Icon'
-WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
-# macOS app icons sit inside a 1024 px canvas with a 100 px margin.
-sed -e '1s|.*|<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><svg x="100" y="100" width="824" height="824" viewBox="0 0 1024 1024">|' \
-    -e 's|^</svg>$|</svg></svg>|' assets/icon.svg > "$WORK/padded.svg"
-mkdir "$WORK/AppIcon.iconset"
-for size in 16 32 128 256 512; do
-  rsvg-convert -w $size -h $size "$WORK/padded.svg" -o "$WORK/AppIcon.iconset/icon_${size}x${size}.png"
-  rsvg-convert -w $((size * 2)) -h $((size * 2)) "$WORK/padded.svg" -o "$WORK/AppIcon.iconset/icon_${size}x${size}@2x.png"
-done
-iconutil -c icns "$WORK/AppIcon.iconset" -o "$R/AppIcon.icns"
+cp assets/AppIcon.icns "$R/AppIcon.icns" # regenerate with scripts/make-icon.sh
 
 echo '4/5 Info.plist'
 cat > "$C/Info.plist" <<PLIST

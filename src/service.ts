@@ -1,4 +1,4 @@
-import { mkdir, chmod, unlink } from 'node:fs/promises';
+import { mkdir, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -24,14 +24,14 @@ export async function createService(root: string, notify: (id: string, job: Job)
   if (await Bun.file(tokenPath).exists()) token = (await Bun.file(tokenPath).text()).trim();
   else { token = randomBytes(32).toString('hex'); await Bun.write(tokenPath, token); }
   await chmod(tokenPath, 0o600);
-  const pending = new Map<string, Result & { image?: string }>();
-  const removeImage = async (item: { image?: string }) => { if (item.image) { await unlink(item.image).catch(() => {}); item.image = undefined; } };
+  // Results stay in memory for ten minutes. Screenshots are never written to disk.
+  const pending = new Map<string, Result>();
   const clean = setInterval(() => {
     for (const [id, item] of pending) {
       if (Date.now() - item.created > 120000 && item.state === 'pending') {
-        item.state = 'error'; item.text = 'Claude did not respond within two minutes. Attach to the session to check permissions or usage.'; void removeImage(item);
+        item.state = 'error'; item.text = 'Claude did not respond within two minutes. Open the log from the Plainspeak menu, or check your usage limit.';
       }
-      if (Date.now() - item.created > 600000) { void removeImage(item); pending.delete(id); }
+      if (Date.now() - item.created > 600000) pending.delete(id);
     }
   }, 5000);
   const server = Bun.serve({
@@ -54,7 +54,7 @@ export async function createService(root: string, notify: (id: string, job: Job)
         if (req.method === 'GET' && url.pathname.startsWith('/result/')) {
           const item = pending.get(url.pathname.slice(8));
           if (!item) return json({ error: 'Unknown or expired request' }, 404);
-          const { image, ...publicItem } = item; return json(publicItem);
+          return json(item);
         }
         if (url.pathname === '/settings') {
           if (req.method === 'GET') { const settings = await loadSettings(local); return json({ settings, styles: catalogue(settings) }); }
@@ -77,35 +77,33 @@ export async function createService(root: string, notify: (id: string, job: Job)
         if (cap.mode === 'draft' && !cap.text?.trim()) return json({ error: 'Select your own draft text before using the draft hotkey.' }, 400);
         const rules = resolve(toRulesFile(await loadSettings(local)), cap);
         const id = crypto.randomUUID();
-        const item: Result & { image?: string } = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now() };
+        const item: Result = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now() };
         let bytes: Buffer | undefined;
         if (cap.image_base64) {
           if (!/^[A-Za-z0-9+/]+={0,2}$/.test(cap.image_base64)) return json({ error: 'Invalid base64 PNG' }, 400);
           bytes = Buffer.from(cap.image_base64, 'base64');
           if (!bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return json({ error: 'Expected PNG screenshot' }, 400);
-          item.image = join(local, `${id}.png`); await Bun.write(item.image, bytes); await chmod(item.image, 0o600);
         }
         pending.set(id, item);
         const { image_base64, ...fields } = cap;
-        try { await notify(id, { cap: { ...fields, image: item.image }, rules, image: bytes }); }
-        catch { pending.delete(id); await removeImage(item); return json({ error: 'Claude transport unavailable' }, 503); }
+        try { await notify(id, { cap: { ...fields, image: Boolean(bytes) }, rules, image: bytes }); }
+        catch { pending.delete(id); return json({ error: 'Claude is not available' }, 503); }
         return json({ request_id: id }, 202);
       } catch (e) { return json({ error: e instanceof Error ? e.message : 'Invalid request' }, 400); }
     },
   });
   return {
     server, token,
-    async image(id: string) { const item = pending.get(id); if (!item?.image || item.state !== 'pending') throw new Error('No active screenshot'); return (await Bun.file(item.image).arrayBuffer()); },
     async show(id: string, text: string) {
       const item = pending.get(id); if (!item || item.state !== 'pending') throw new Error('Request is unknown, expired or already complete');
-      item.text = text; item.state = 'done'; await removeImage(item);
+      item.text = text; item.state = 'done';
     },
     /** Partial text while Claude is still writing; the overlay shows it as it grows. */
     progress(id: string, text: string) { const item = pending.get(id); if (item?.state === 'pending') item.text = text; },
     async fail(id: string, message: string) {
       const item = pending.get(id); if (!item || item.state !== 'pending') return;
-      item.text = message; item.state = 'error'; await removeImage(item);
+      item.text = message; item.state = 'error';
     },
-    async close() { clearInterval(clean); server.stop(true); await Promise.all([...pending.values()].map(removeImage)); },
+    async close() { clearInterval(clean); server.stop(true); },
   };
 }

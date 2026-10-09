@@ -1,14 +1,13 @@
 # Plainspeak
 
-A plain-English overlay for macOS. Press a mouse side button on a message that
-takes too much work to read, and a small panel tells you what it means. Press the
-other button and it fixes the wording. Nothing is ever sent for you.
+A plain-English reader for macOS. Point at a message that takes too much work to
+read, press a mouse side button, and a small panel tells you what it means. Press
+the other button and it fixes the wording. Nothing is ever sent for you.
 
 ![Plainspeak: less wording, more meaning](docs/images/hero.png)
 
-It helps with AI filler, awkward wording across languages, and spelling, swapped
-letters or missing words. It runs on **Claude Haiku 5.5** through your Claude Code
-subscription login. No API keys. macOS only.
+Plainspeak is a menu bar app. It runs on **Claude Haiku 5.5** through your own
+Claude plan, signed in with Claude Code. No API keys. macOS only.
 
 ## Why use it
 
@@ -19,171 +18,107 @@ on the screen you already have open.
   point, what they want from you, the deadline and anything unclear.
 - **Read across languages.** Awkward wording from someone writing in a second
   language is read for what they meant.
-- **Easier to read.** Short parts, bold labels and clear gaps between them,
-  following the British Dyslexia Association's style guide.
+- **Easier to read.** Short parts, bold labels and clear gaps between them, using
+  the spacing, font and layout advice in the British Dyslexia Association's
+  [style guide](https://cdn.bdadyslexia.org.uk/uploads/documents/Advice/style-guide/BDA-Style-Guide-2023.pdf?v=1680514568).
+- **Your style.** ADHD-friendly, key points, one line, or a style you write
+  yourself. Different styles for different apps, channels or people.
 - **Check your own writing.** Your drafts come back with spelling, swapped letters
-  and missing words fixed, in your own voice.
-- **You stay in control.** It reads only when you press a button. It never sends,
-  replies or edits anything for you.
+  and missing words fixed, in your own voice, or reshaped as an email or a short
+  Slack message.
+- **You stay in control.** It reads only when you press. It never sends, replies
+  or edits anything for you.
 
 ## What it does
 
-**Read.** Point at a message and press the back side button. It captures the
-focused window and explains the message under the pointer: the point, what they
-want from you, any deadline, and what is unclear. Each part gets its own short
-paragraph. The panel opens beside the pointer. Real output from Haiku 5.5:
+**Read.** Point at a message and press the back side button. A pink ring marks
+where you pointed on the screenshot Claude receives, so Claude explains that
+message and uses the rest of the screen only as background. The answer appears
+beside the pointer, word by word, usually within two seconds.
 
-![A wordy message on the left; the plain-English reading on the right](docs/images/read-before-after.png)
+![A fictional Slack message with a pink ring where the reader pointed, and the plain-English reading beside it](docs/images/read-before-after.png)
 
 **Correct.** The front side button fixes spelling, grammar and word order in the
-visible message without summarising it:
+message you point at, without summarising it.
 
-![A message with spelling mistakes on the left; the corrected version on the right](docs/images/correct-before-after.png)
+![A fictional message full of typos, and the corrected version beside it](docs/images/correct-before-after.png)
 
 **Your own drafts.** Select text you wrote and press Control + Option + Command + D.
-You get a correction to review, paste and send yourself:
+You get a correction, already copied, to review, paste and send yourself.
 
 ![Illustration: a draft with spelling mistakes and its correction](docs/images/drafts.png)
 
-**Context.** Command + back side button also searches your Obsidian notes and
-Google Drive, and cites what it used.
+**Notes and Drive.** Command + back side button also searches your Obsidian notes
+and Google Drive, and says what it used.
 
 ## Controls
 
 | Input | Action |
 | --- | --- |
-| Front side button | Read the visible message and correct its spelling and grammar |
-| Back side button | Read and simplify the visible message |
-| Command + back side button | Simplify, with context from your notes and Google Drive |
+| Back side button | Read the message you are pointing at |
+| Front side button | Correct the spelling and grammar of the message you are pointing at |
+| Command + back side button | Read, with context from your notes and Google Drive |
 | Control + Option + Command + R | Same as the back side button |
 | Control + Option + Command + D | Correct the text you have selected (your own draft) |
 | Control + Option + Command + G | Same as Command + back side button |
-| Escape, or click anywhere else once the result shows | Close the overlay |
+| Escape, or click anywhere else once the answer shows | Close the panel |
 
-A **PS** item in the menu bar offers the same actions, plus **Set front mouse
-button…** and **Set back mouse button…** for mice that number their buttons
-differently. The assigned side buttons stop working as browser Back and Forward.
-With any other modifier held they behave normally.
-
-## How it works
-
-```mermaid
-flowchart LR
-  A[Side button or hotkey] --> B[Hammerspoon<br/>plainspeak.lua]
-  B -- screenshot or selected text --> C[Local service<br/>127.0.0.1:8790]
-  C -- capture and screenshot --> D[Warm Claude session<br/>Agent SDK, Claude Haiku 5.5]
-  D -- answer as it is written --> C
-  C --> E[Overlay panel]
-```
-
-1. Hammerspoon captures the focused window, or your selected text for drafts.
-2. It posts the capture to a small Bun service on `127.0.0.1`, authenticated
-   with a local token.
-3. The service hands the capture, screenshot included, to a Claude session that
-   it keeps warm through the Claude Agent SDK, signed in with your Claude plan.
-4. Claude's answer streams back, and the panel shows the words as they arrive.
-5. Every 15 captures the session is replaced, in the background, to keep it small.
-
-Normal reads run with no tools at all. A context lookup (Command + back button)
-gets its own short session that can only read your Obsidian notes and Google
-Drive. Sending, sharing, writing and shell commands are blocked.
+The **p.** item in the menu bar has the same actions, plus **Reading style**,
+**Draft style**, **Settings…**, **Setup and permissions…** and
+**Set front / back mouse button…** for mice that number their buttons differently.
+The assigned side buttons stop working as browser Back and Forward; with Option,
+Control, Shift or Fn held they behave normally.
 
 ## What you need
 
-Install these before you start. The commands use [Homebrew](https://brew.sh/).
-
 | What | Why Plainspeak needs it | How to install |
 | --- | --- | --- |
-| macOS 13 or later | Claude Code needs it | - |
-| Xcode Command Line Tools | `git` to clone the repo, `python3` for the installer | `xcode-select --install` |
-| [Hammerspoon](https://www.hammerspoon.org/) | Watches the buttons and hotkeys, takes the screenshot, shows the panel | `brew install --cask hammerspoon` |
-| [Bun](https://bun.sh/) | Runs the small local service | `brew install oven-sh/bun/bun` |
+| macOS 14 or later | The screen capture Plainspeak uses | - |
+| Xcode Command Line Tools | `git` to clone the repo, `swift` to build the app | `xcode-select --install` |
+| [Bun](https://bun.sh/) | Builds the app's local service | `brew install oven-sh/bun/bun` |
 | [Claude Code](https://code.claude.com/docs/en/setup) | Signs you in to your Claude plan. Plainspeak runs Claude through that login | `brew install --cask claude-code` |
 | A Claude Pro, Max, Team or Enterprise plan | Plainspeak uses your plan, not an API key. The free plan has no Claude Code | Run `claude` once and sign in |
 | A mouse with side buttons (optional) | The quickest way to use it. Hotkeys work without one | - |
 
-Hammerspoon also needs two macOS permissions, **Accessibility** and **Screen
-Recording**. Step 3 of the setup covers them.
+The `brew` commands need [Homebrew](https://brew.sh/).
 
-## Set up
+## Install
 
-**1. Clone and install.** Use a clone you will keep. Hammerspoon loads its script
-from this folder.
+**1. Build and install the app.** Use a clone you will keep.
 
 ```sh
 git clone https://github.com/OscarC178/Plain-speak.git
 cd Plain-speak
 bun install
+bun run app
 ```
 
-**2. Create your personal rules** (optional, the example works as it is):
+This builds `Plainspeak.app`, puts it in `/Applications` and opens it. The
+**p.** icon appears in the menu bar.
 
-```sh
-mkdir -p ~/.plainspeak
-cp rules/rules.example.yaml ~/.plainspeak/rules.yaml
-bun run rules:check
-```
+**2. Follow the setup window.** It opens by itself and ticks each item as it is done:
 
-**3. Install the Hammerspoon module.** This links `plainspeak.lua` into
-`~/.hammerspoon` and adds `require("plainspeak")` to your `init.lua`. It refuses
-to overwrite an existing, unrelated `plainspeak.lua`.
+- **Accessibility:** press **Turn on**, then switch Plainspeak on in System Settings.
+- **Screen Recording:** press **Turn on**, switch Plainspeak on, then press
+  **Reopen Plainspeak**. macOS only applies this permission after a reopen.
+- **Claude:** ticks itself when you are signed in to Claude Code.
 
-```sh
-bun run install:hammerspoon
-```
+**Start Plainspeak when I log in** is on. Switch it off there if you prefer.
+Press **Done**. The window comes back by itself only if something stops working.
 
-Open Hammerspoon and grant it **Accessibility** and **Screen Recording** in
-System Settings > Privacy & Security. Then quit and reopen Hammerspoon. Reload
-Config is not enough: it reloads the Lua but the running process keeps its old
-permissions.
-
-**4. Start Plainspeak.**
-
-```sh
-bun run start
-```
-
-There are no prompts to answer. After a few seconds you should see
-`Claude session ready.` The PS item appears in the menu bar. Focus a message and
-press a side button.
-
-## Run it
-
-Plainspeak runs on port 8790, so only one copy runs at a time.
-
-**From a terminal.** `bun run start`. Control + C stops it. The terminal shows
-when the session is ready and how long each answer took, never the content.
-
-**From Slipway.** Nothing to configure. Add the repo, open any branch or
-worktree, and press **Start dev server** in the Run panel. With no Dev Start
-Command saved, Slipway runs `npm run dev`, which starts Plainspeak the same way.
-Stopping the tab stops it. A fresh worktree installs its dependencies on first
-run. Every branch runs its own copy of the code, so only start branches you trust.
-
-**At login.**
-
-```sh
-bun run install:launchd     # start at login, and restart if it ever stops
-bun run uninstall:launchd
-```
-
-The log is in `~/.plainspeak/launchd.log`.
-
-**The old tmux engine.** The previous engine, a Claude Code session in tmux
-using channels, still works for now with `bun run daemon:start`. It needs tmux
-and its first-run prompts, and it will be removed in a later version. Stop it
-with `bun run daemon:stop` before running `bun run start`.
+**Coming from the Hammerspoon version?** Remove `require("plainspeak")` from
+`~/.hammerspoon/init.lua` and reload Hammerspoon. Your mouse button choices carry over.
 
 ## How to use it
 
 ### Read a message
 
 1. Open the message in any app: Slack, Gmail, Teams or a web page.
-2. Put the pointer on the message you mean. Plainspeak explains that one and uses
-   the rest of the screen only as background.
+2. Put the pointer on the message you mean.
 3. Press the **back** side button, or Control + Option + Command + R.
-4. A panel opens beside the pointer with up to four short parts: **The point**,
-   **They want**, **By** and **Unclear**. Parts that do not apply are left out.
+4. The answer appears beside the pointer in your reading style. The default,
+   **Plain**, gives up to four short parts: **The point**, **They want**, **By**
+   and **Unclear**. Parts that do not apply are left out.
 5. Click anywhere else, or press Escape, to close it. **Copy** keeps the text.
 
 ### Fix the wording of someone else's message
@@ -193,17 +128,16 @@ spelling, grammar and word order fixed. Nothing is summarised.
 
 ### Check your own draft before you send it
 
-1. Write your message as normal.
-2. Select the text.
-3. Press Control + Option + Command + D.
-4. The corrected version appears in the panel and is copied to your clipboard.
-5. Paste it over your draft, read it once, and send it yourself.
+1. Write your message as normal and select it.
+2. Press Control + Option + Command + D.
+3. The rewritten version appears in the panel and is copied to your clipboard.
+4. Paste it over your draft, read it once, and send it yourself.
 
 ### Bring in background from your notes
 
 Hold Command and press the back side button. Plainspeak also searches your
-Obsidian notes and Google Drive, and lists what it used. Use it for messages that
-assume you remember earlier work.
+Obsidian notes and Google Drive, and lists what it used. This takes longer,
+around ten seconds, because it really searches.
 
 ### Which one to use
 
@@ -219,142 +153,165 @@ assume you remember earlier work.
 - Treat the panel as a reading aid, not the record. Check dates, numbers and
   commitments in the original before you act.
 - When a part says **Unclear**, ask the sender rather than guess.
-- Point before you press. With several messages on screen, the pointer is how
-  Plainspeak knows which one you mean.
+- Point at the message's text before you press, not the gap between messages.
 - Do not capture anything you could not share with Anthropic. The screenshot goes
   to Claude through your account.
 
-## Configure
+## Styles and rules
 
-### Model and effort
+![The settings window: reading styles, draft styles, answer length and custom styles](docs/images/settings.png)
 
-The session runs `claude-haiku-5-5` at `high` effort by default. Override
-either when starting:
+Open **Settings…** from the **p.** menu. Every change saves itself and applies from
+your next capture. There is no Save button and nothing to restart. For a quick
+switch, use **Reading style** or **Draft style** in the menu.
 
-```sh
-PLAINSPEAK_MODEL=claude-opus-5-5 PLAINSPEAK_EFFORT=high bun run start
+| Reading a message | Your drafts |
+| --- | --- |
+| **Plain:** the point, what they want, by when, what is unclear | **Clean:** fix spelling and grammar, keep your voice |
+| **ADHD-friendly:** the action first, three short lines at most | **Email:** greeting, short paragraphs, sign-off |
+| **Key points:** up to three bullets | **Shorter:** cut it down, keep every fact |
+| **One line:** a single sentence | **Friendlier:** warmer, same meaning |
+| **How it sounds:** the likely tone and other readings | **More professional:** client-ready, no filler |
+| **Explain simply:** jargon and idioms spelled out | **Slack message:** short and casual |
+
+**Custom styles.** Describe in plain words how you want answers to look, for
+example "Lead with what I need to do. Use short bullet points." Saved styles join
+the lists above and the menu.
+
+**Rules** use a different style for one place or person:
+
+- **When:** an app, a Slack channel or email subject, or text in the window title.
+  Plainspeak checks these itself.
+- **From:** a person's name, an email domain, or a described thread. Claude checks
+  these from the screenshot, so they are best effort; if it cannot tell, the rule
+  is skipped.
+- **Then:** a reading or draft style, something about the sender (AI-written,
+  writes in a second language, or a dyslexic writer), a line limit, extra
+  instructions, and background for Claude.
+
+Set a sender type only when you know it fits. Plainspeak never diagnoses anyone.
+
+## Notes and Google Drive
+
+For Obsidian, point `~/.plainspeak/config.json` at your vault, then quit and reopen
+Plainspeak:
+
+```json
+{ "vault": "/absolute/path/to/your/vault" }
 ```
 
-Stop Plainspeak first; a running copy keeps its model.
+Search covers up to 4,000 notes and the first 16,000 characters of each. Reads
+outside the vault, including through symlinks, are refused.
 
-### Personal files
+Google Drive works through the Drive connector your Claude account already has.
+A context lookup can only run read-only Obsidian and Drive tools: sending,
+sharing, writing and shell commands are blocked, even if your own Claude settings
+allow them. Without a connected source, the panel says context was not checked.
 
-Everything personal lives in `~/.plainspeak`, outside the repo, so every clone,
-branch and worktree shares it. Set `PLAINSPEAK_HOME` to use another folder.
+## How it works
+
+```mermaid
+flowchart LR
+  A[Side button or hotkey] --> B[Plainspeak.app<br/>capture and panel]
+  B -- screenshot or selected text --> C[Local service<br/>127.0.0.1:8790]
+  C -- capture and your style --> D[Warm Claude session<br/>Agent SDK, Claude Haiku 5.5]
+  D -- answer as it is written --> C
+  C --> E[Panel beside the pointer]
+```
+
+1. The app captures the focused window with Apple's ScreenCaptureKit, at full
+   Retina sharpness, and draws a ring where you pointed. For drafts it takes your
+   selected text instead.
+2. It posts the capture to a small service inside the app, on `127.0.0.1`,
+   authenticated with a local token.
+3. The service adds your style and rules, and hands the capture to a Claude
+   session it keeps warm through the Claude Agent SDK, signed in with your plan.
+4. Claude's answer streams back and the panel shows the words as they arrive.
+5. Every 15 captures the session is replaced in the background, to keep it small.
+
+Normal reads run with no tools at all. A context lookup gets its own short session
+that can only read your notes and Drive.
+
+## Your files
+
+Everything personal lives in `~/.plainspeak`, outside the repo. Set
+`PLAINSPEAK_HOME` to use another folder.
 
 | File | Purpose |
 | --- | --- |
-| `token` | Shared secret between Hammerspoon and the service. Created on first start. |
-| `config.json` | Optional. `{"vault": "/absolute/path/to/your/vault"}` enables notes search. |
-| `rules.yaml` | Optional. Your rules. Falls back to `rules/rules.example.yaml`. |
-| `*.png` | Temporary screenshots, deleted after each result or timeout. |
-| `launchd.log` | Output from the login item, if installed. |
-
-Mouse button IDs are stored in `~/.hammerspoon/plainspeak-mouse.json`.
-
-### Rules
-
-Rules adapt the output per app, channel, person or thread. Changes are read on
-the next capture.
-
-![Illustration: a per-person rule clarifying awkward wording](docs/images/rules.png)
- Invalid YAML, unknown profiles or bad line limits fail visibly.
-The example includes `ai-drivel`, `esl` and `dyslexic` profiles. Assign a profile
-only when you know it fits; Plainspeak does not diagnose anyone.
-
-```yaml
-rules:
-  - name: Short replies for this channel
-    match: { app: slack, channel: planning }
-    max_lines: 3
-    instructions: Keep the decision, owner and deadline.
-
-  - name: A particular person's messages
-    match: { app: slack, person: "Example Person" }
-    profile: esl
-    max_lines: 5
-
-  - name: This recurring thread
-    match: { app: slack, thread: "Website release checklist" }
-    instructions: Keep unresolved blockers and distinguish suggestions from decisions.
-```
-
-`app`, `channel`, `title` (regex), `text` (regex) and `mode` are matched locally.
-`person`, `sender_domain` and `thread` are matched by Claude from the screenshot.
-These are best-effort visual matches; if the identity is unclear, the rule is
-skipped. Rules run in file order and later line limits win. `max_lines` is an
-instruction to the model, not a hard limit. Allowed limits are 1 to 30.
-
-### Notes and Google Drive context
-
-Plainspeak ships read-only `vault_search` and `vault_note` tools for a local
-Obsidian vault. Point `~/.plainspeak/config.json` at your vault and restart
-Plainspeak. Search covers up to 4,000 notes and the first 16,000 characters of each.
-Reads outside the vault, including through symlinks, are refused. There is no
-write tool.
-
-Google Drive works through the Drive connector your Claude account already has.
-To reach it, a context lookup loads your Claude settings, but it can only run the
-read-only Obsidian and Drive tools. A hook blocks everything else, even tools your
-own settings allow. There are no approval prompts. Without a connected source,
-the panel says context was not checked.
+| `settings.json` | Your styles and rules, written by the settings window. |
+| `config.json` | Optional. `{"vault": "..."}` turns on notes search. |
+| `token` | Shared secret between the app and its service. Created on first start. |
+| `mouse.json` | Your side button numbers. |
+| `app.log` | Start-up, timings and errors. Never message content. |
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 | --- | --- |
-| Buttons do nothing, or "Plainspeak unavailable" | Plainspeak is not running. Run `bun run start`. |
-| "Port 8790 is already in use" | The old tmux daemon is running. Run `bun run daemon:stop`, then `bun run start`. |
-| "Claude could not finish this capture: Not logged in" | Run `claude` in a terminal, sign in, then restart Plainspeak. |
-| "Claude did not respond within two minutes" | Usually a usage limit. Check the terminal or `~/.plainspeak/launchd.log`. |
-| "Unauthorised" | Hammerspoon is reading an old token. Run `bun run install:hammerspoon` again. |
-| "Accessibility" or "Screen Recording is not active" | Grant the permission, then quit and reopen Hammerspoon. |
-| Buttons swapped or not detected | PS menu > **Set front mouse button…**, press it, then the same for the back button. |
-| Draft hotkey says to select text | The app does not expose its selection to macOS. Copy the text into another editor. |
+| The **p.** icon is dimmed | Plainspeak is not ready. Open the menu: the top line says why. |
+| Buttons do nothing | Accessibility is off. **Setup and permissions…** in the menu. |
+| "Could not capture the window" | Screen Recording is off, or on but not yet applied. Turn it on, then **Reopen Plainspeak** in the setup window. |
+| "Not signed in" in the setup window | Run `claude` in a terminal, sign in, then press **Check again**. |
+| "Port 8790 is in use" | Another copy of Plainspeak is running. Quit it from its menu. |
+| "Claude did not respond within two minutes" | Usually a usage limit. **Open log** in the menu shows the detail. |
+| Buttons swapped or not detected | **Set front mouse button…**, press it, then the same for the back button. |
+| Draft hotkey says to select text | The app does not share its selection with macOS. Copy the text into another editor. |
+| The wrong message was explained | Point at the message's text rather than the gap between messages. |
 
 ## Privacy and safety
 
 - Screenshots and selected text go to Claude through your signed-in account. Do
-  not capture anything you cannot share with the provider.
-- The service binds to `127.0.0.1` and checks the token, Host and Origin headers,
-  so web pages cannot post captures.
-- Captures are never written to logs. Temporary screenshots are deleted after a
-  result, a timeout or a clean shutdown; a crash can leave one in `~/.plainspeak`.
-- Results stay in memory for ten minutes. Claude sessions are not saved to disk.
+  not capture anything you cannot share with Anthropic.
+- Screenshots are never written to disk. Claude sessions are not saved to disk.
+  Answers stay in memory for ten minutes.
+- The service listens only on `127.0.0.1` and checks a token and the Host and
+  Origin headers, so web pages cannot post captures or read answers.
 - There is no sending endpoint. Normal reads run with no tools; context lookups
   can only read Obsidian and Google Drive.
-- Nothing runs in the background: no polling, no unread-message scraping, no
-  automatic screenshots.
+- Nothing is captured in the background: no polling, no unread-message scraping,
+  no automatic screenshots. Plainspeak only looks when you press.
 - A rewrite can misread a message. Check dates, numbers and commitments before
   you act on them.
 
 ## Limits
 
 - macOS only, Claude only.
-- Usage counts against your plan's limits. The session is replaced every 15
-  captures to keep each capture small. Context lookups use more.
-- Identity-based rules depend on what Claude can see in the screenshot.
-- Automatic thread lookup from a tab title is not implemented.
+- Usage counts against your plan's limits. Context lookups use more.
+- Rules about people and threads depend on what Claude can see in the screenshot.
+- The panel is dark only. The BDA guide prefers dark text on an off-white
+  background, which is not offered yet.
+- The app is signed for your own machine, not notarised, so a built copy shared
+  with someone else shows macOS security warnings. They should build it themselves.
 
 ## Develop
 
 ```sh
-bun test
+bun test            # service, styles, settings, engine and prompt tests; no model usage
 bun run typecheck
+bun run app         # build, install and open Plainspeak.app
+npm run dev         # the same, then follow the log; Slipway's Start dev server runs this
 ```
 
-The tests cover rule matching, capture authentication, foreign-origin rejection,
-request and result correlation, concurrent captures, screenshot lifetime,
-transport failure, invalid configuration, vault path boundaries, and the engine's
-warm-up, streaming, session renewal, failures and read-only context tools. They
-use a stand-in Claude session, so they do not spend model usage.
+`scripts/build-app.sh` signs the app with your first code-signing identity, or
+`PLAINSPEAK_SIGN_IDENTITY`, so macOS keeps its permissions across rebuilds. With no
+identity it signs ad hoc and macOS asks for permissions again after each build.
+`npm run dev` installs the branch you run over `/Applications/Plainspeak.app`, so
+only run branches you trust.
+
+To change the model or effort for one run, quit Plainspeak, then:
+
+```sh
+open --env PLAINSPEAK_MODEL=claude-sonnet-5-5 --env PLAINSPEAK_EFFORT=medium /Applications/Plainspeak.app
+```
+
+The icon lives in `assets/icon.svg`. Regenerate the PNG and app icon with
+`scripts/make-icon.sh`, which needs `brew install librsvg`.
 
 References: [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview),
-[Claude channels](https://code.claude.com/docs/en/channels),
-[channels reference](https://code.claude.com/docs/en/channels-reference),
-[Hammerspoon window snapshot](https://www.hammerspoon.org/docs/hs.window.html#snapshot),
-[Hammerspoon webview](https://www.hammerspoon.org/docs/hs.webview.html).
+[ScreenCaptureKit](https://developer.apple.com/documentation/screencapturekit),
+[BDA Dyslexia Style Guide 2023](https://cdn.bdadyslexia.org.uk/uploads/documents/Advice/style-guide/BDA-Style-Guide-2023.pdf?v=1680514568).
 
 ## Licence
 
-[MIT](LICENSE). Illustrations in `docs/images` use fictional messages.
+[MIT](LICENSE). Images in `docs/images` use fictional messages.

@@ -3,7 +3,7 @@
 <style>
 /* Reading layout follows the British Dyslexia Association style guide: sans serif, line spacing of 1.5 or more,
    slightly wider letter and word spacing, short left-aligned paragraphs with clear gaps, bold rather than italics.
-   The page itself is transparent so Hammerspoon's borderless window shows the rounded card. */
+   The page itself is transparent so the app's borderless panel shows the rounded card. */
 :root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;background:transparent}
 #card{min-height:100vh;padding:18px 22px 14px;background:#141b22;color:#eceee9;border:1px solid #3c4851;border-radius:12px;font:18px/1.6 system-ui,sans-serif;letter-spacing:.02em;word-spacing:.06em}
 header{display:flex;justify-content:space-between;align-items:baseline;gap:12px}strong.brand{font-size:15px;letter-spacing:0}small{color:#a6bab3;font-size:12px;letter-spacing:1px;text-transform:uppercase}
@@ -19,7 +19,7 @@ history.replaceState(null,'',location.pathname);
 let text='',shown='',stopped=false;
 const footer=document.querySelector('footer'),result=document.getElementById('result'),status=document.getElementById('status'),copy=document.getElementById('copy');
 function bridge(action,value){if(window.webkit?.messageHandlers?.plainspeak)window.webkit.messageHandlers.plainspeak.postMessage({action,text:value})}
-// Ask Hammerspoon to fit the window to the content, so short answers get a short panel.
+// Ask the app to fit the panel to the content, so short answers get a short panel.
 // The footer is the last thing in the card; add the card's bottom padding and border.
 function fit(){bridge('size',String(Math.ceil(footer.getBoundingClientRect().bottom+15)))}
 copy.onclick=()=>bridge('copy',text);

@@ -24,8 +24,8 @@ export interface Capture {
   mode: Mode;
   /** Selected or copied text, if the hotkey managed to grab any. */
   text?: string;
-  /** Path to a saved screenshot of the window, if one was taken. */
-  image?: string;
+  /** True when a screenshot of the window came with the capture. */
+  image?: boolean;
   /** Where the pointer was when the button was pressed, as fractions of the screenshot (0 to 1). */
   pointer?: { x: number; y: number; marked?: boolean };
 }

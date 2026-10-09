@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 /**
  * Personal state (token, config, rules, temporary screenshots) lives outside the
- * checkout so every clone, branch and worktree shares one identity with Hammerspoon.
+ * checkout so every clone, branch and worktree shares one identity with Plainspeak.app.
  * Override with PLAINSPEAK_HOME; tests pass their own directory.
  */
 export function stateHome(): string {
