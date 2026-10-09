@@ -79,7 +79,8 @@ test('pointer is accepted inside the window and rejected outside 0 to 1',async()
  const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
  let prompt=''; const f=await fixture(async(_,p)=>{prompt=p});
  expect((await f.post({...capture,image_base64:png,pointer:{x:1.5,y:0.2}})).status).toBe(400);
- expect((await f.post({...capture,image_base64:png,pointer:{x:0.2,y:0.8}})).status).toBe(202);
+ // No selected text, so the pointer says which message to explain.
+ expect((await f.post({...capture,text:undefined,image_base64:png,pointer:{x:0.2,y:0.8}})).status).toBe(202);
  expect(prompt).toContain('about 20% across and 80% down');
 });
 
@@ -100,4 +101,11 @@ test('each answer carries the panel colours chosen in settings',async()=>{
  const {settings}=await (await fetch(f.url+'/settings',{headers:auth})).json();
  await fetch(f.url+'/settings',{method:'PUT',headers:{...auth,'Content-Type':'application/json'},body:JSON.stringify({...settings,theme:'dark'})});
  expect(await read()).toBe('dark');
+});
+
+test('an outlined selection with its screenshot reaches the engine',async()=>{
+ let job: Job | undefined; const f=await fixture(async(_,__,j)=>{job=j});
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jGZkAAAAASUVORK5CYII=';
+ expect((await f.post({...capture,mode:'draft',text:'sure will send tmrw',image_base64:png,outlined:true})).status).toBe(202);
+ expect(job?.cap).toMatchObject({mode:'draft',outlined:true,image:true});
 });

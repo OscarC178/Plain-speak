@@ -28,6 +28,8 @@ export interface Capture {
   image?: boolean;
   /** Where the pointer was when the button was pressed, as fractions of the screenshot (0 to 1). */
   pointer?: { x: number; y: number; marked?: boolean };
+  /** True when the highlighted text is outlined on the screenshot. */
+  outlined?: boolean;
 }
 
 export interface Match {

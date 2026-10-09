@@ -26,7 +26,7 @@ ${READ_SAFETY}` },
   { id: 'adhd', kind: 'read', name: 'ADHD-friendly', description: 'The action first. Three short lines at most.', instructions: `${READ_BASE}
 Lead with the action. Use at most three parts, each on its own line with a blank line between:
   Do this: the one thing the reader needs to do, or "Nothing to do" if there is none.
-  By: the deadline, only if there is one.
+  By: when the reader must do it, only if the message says. Not other dates the message mentions.
   Why: one short line of context, only if it changes what to do.
 No other detail. Add an "Unclear:" line only if it would change what the reader should do.
 Use the shortest common words.
@@ -52,6 +52,7 @@ ${READ_SAFETY}` },
 
   { id: 'clean', kind: 'draft', name: 'Clean', description: 'Fix spelling, grammar and missing words. Keep your voice.', instructions: `The reader wrote this and wants it readable before they send it.
 Fix spelling, word order and dropped words. Keep their voice, their meaning and their level of formality.
+Expand chat shorthand to the word it stands for (tho is though, u is you, tmrw is tomorrow), but keep casual words such as yeah.
 Do not soften a direct message. Keep their line breaks.
 ${DRAFT_SAFETY}` },
   { id: 'email', kind: 'draft', name: 'Email', description: 'A clear email: greeting, short paragraphs, sign-off.', instructions: `The reader wrote this and wants it sent as a clear email.
