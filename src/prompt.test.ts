@@ -35,3 +35,26 @@ test('a marked pointer sends Claude to the ring drawn on the screenshot',()=>{
  expect(prompt).toContain('The ring is not part of the message');
  expect(prompt).toContain('Never mention the ring, the pointer or how you chose the message');
 });
+test('highlighted text is the focus and the outlined screenshot is context only',()=>{
+ const cap={app:'Slack',title:'general - Slack',mode:'read' as const,text:'can u lock the edit by the 18th',image:true,outlined:true};
+ const prompt=buildTurn(cap,resolve(rules,cap));
+ expect(prompt).toContain('Work on exactly that text, not the rest of the screen');
+ expect(prompt).toContain('which is outlined in pink');
+ expect(prompt).toContain('Use it only as context');
+ expect(prompt).toContain('Never mention them, the screenshot, or how you found the text');
+ expect(prompt).not.toContain('Work on the message under or nearest the ring');
+});
+test('when only the pointer shows where the selection is, the ring marks it but the text stays the focus',()=>{
+ const cap={app:'Slack',title:'general - Slack',mode:'correct' as const,text:'plese chek',image:true,pointer:{x:0.4,y:0.5,marked:true}};
+ const prompt=buildTurn(cap,resolve(rules,cap));
+ expect(prompt).toContain('marked with a pink ring');
+ expect(prompt).toContain('Work on exactly that text');
+ expect(prompt).not.toContain('The reader pointed at');
+});
+test('a draft may use the screenshot for tone but never for content',()=>{
+ const cap={app:'Mail',title:'Re: budget',mode:'draft' as const,text:'sure, will send it tmrw',image:true,outlined:true};
+ const prompt=buildTurn(cap,resolve(rules,cap));
+ expect(prompt).toContain('Never add content from it');
+ expect(prompt).not.toContain('Work on exactly that text, not the rest of the screen');
+ expect(prompt).toContain('For draft mode: edit selected text only');
+});

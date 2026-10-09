@@ -10,6 +10,7 @@ const input = z.object({
   text: z.string().max(40000).optional(), image_base64: z.string().max(8_000_000).optional(),
   context: z.boolean().optional(),
   pointer: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), marked: z.boolean().optional() }).strict().optional(),
+  outlined: z.boolean().optional(),
 }).strict().refine(v => v.text?.trim() || v.image_base64, 'Capture needs text or a PNG');
 /** One capture handed to an engine. Each engine builds its own prompt from it. */
 export type Job = { cap: Capture & { context?: boolean }; rules: Resolved; image?: Buffer };

@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(statusLine)
         menu.addItem(.separator())
         menu.addItem(item("Read the message", #selector(read), key: "r"))
-        menu.addItem(item("Correct the message", #selector(correct)))
+        menu.addItem(item("Correct the message", #selector(correct), key: "c"))
         menu.addItem(item("Correct my selected draft", #selector(draft), key: "d"))
         menu.addItem(item("Read with my notes and Drive", #selector(context), key: "g"))
         menu.addItem(item("Close panel", #selector(closePanel)))
@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setup.model.buttons = sideButtons.buttons
         sideButtons.start()
         hotkeys.register(kVK_ANSI_R) { [weak self] in self?.run(.read) }
+        hotkeys.register(kVK_ANSI_C) { [weak self] in self?.run(.correct) }
         hotkeys.register(kVK_ANSI_D) { [weak self] in self?.run(.draft) }
         hotkeys.register(kVK_ANSI_G) { [weak self] in self?.run(.read, context: true) }
         startDebugTrigger()
@@ -85,9 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationWillTerminate(_ notification: Notification) { service.stop() }
 
     /// Grabs the screen, sends it to the service, and opens the panel for the answer.
-    private func run(_ mode: Mode, context: Bool = false) {
+    /// `fromMenu` actions ignore the pointer: it is on the menu, not on the message.
+    private func run(_ mode: Mode, context: Bool = false, fromMenu: Bool = false) {
         Task {
-            guard let grab = await capture.grab(mode: mode, context: context) else { return }
+            guard let grab = await capture.grab(mode: mode, context: context, usePointer: !fromMenu) else { return }
             guard let token = Paths.token() else { await toast("Plainspeak is still starting. Try again in a moment."); return }
             var request = URLRequest(url: URL(string: "http://127.0.0.1:\(Paths.port)/capture")!)
             request.httpMethod = "POST"
@@ -100,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 await MainActor.run {
                     if status == 202, let id = json?["request_id"] as? String {
-                        self.overlay.show(id: id, token: token, pointer: grab.pointer)
+                        self.overlay.show(id: id, token: token, pointer: grab.anchor)
                     } else {
                         Toast.show(json?["error"] as? String ?? "Plainspeak is not ready yet.")
                     }
@@ -190,11 +192,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// Debug launches only (PLAINSPEAK_DEBUG=1): lets a test script trigger a capture
-    /// without pressing anything. The object is a mode, optionally with a pointer: "read@0.43,0.30".
+    /// without pressing anything. The object is a mode, optionally with a pointer: "read@0.43,0.30",
+    /// or a selection to make first, as if highlighted from the menu: "select:some text|correct".
     private func startDebugTrigger() {
         guard ProcessInfo.processInfo.environment["PLAINSPEAK_DEBUG"] == "1" else { return }
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.oscarc.plainspeak.debug.capture"), object: nil, queue: .main) { [weak self] note in
-            let parts = (note.object as? String ?? "read").split(separator: "@").map(String.init)
+            let object = note.object as? String ?? "read"
+            if object.hasPrefix("size:") {
+                let parts = object.dropFirst(5).split(separator: "x").compactMap { Double($0) }
+                if parts.count == 2, self?.capture.debugResize(width: parts[0], height: parts[1]) != true { Toast.show("Debug: could not resize the window") }
+                return
+            }
+            if object.hasPrefix("select:"), let bar = object.lastIndex(of: "|") {
+                let needle = String(object[object.index(object.startIndex, offsetBy: 7)..<bar]), mode = String(object[object.index(after: bar)...])
+                self?.capture.pointerOverride = nil
+                if let problem = self?.capture.debugSelect(needle) { Toast.show("Debug: could not select that text: \(problem)"); return }
+                self?.run(Mode(rawValue: mode) ?? .read, fromMenu: true)
+                return
+            }
+            let parts = object.split(separator: "@").map(String.init)
             let coords = parts.count > 1 ? parts[1].split(separator: ",").compactMap { Double($0) } : []
             self?.capture.pointerOverride = coords.count == 2 ? Capture.Pointer(x: coords[0], y: coords[1]) : nil
             switch parts[0] {
@@ -209,10 +225,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func read() { run(.read) }
-    @objc private func correct() { run(.correct) }
-    @objc private func draft() { run(.draft) }
-    @objc private func context() { run(.read, context: true) }
+    @objc private func read() { run(.read, fromMenu: true) }
+    @objc private func correct() { run(.correct, fromMenu: true) }
+    @objc private func draft() { run(.draft, fromMenu: true) }
+    @objc private func context() { run(.read, context: true, fromMenu: true) }
     @objc private func closePanel() { overlay.close() }
     @objc private func learnFront() { sideButtons.learn("front") }
     @objc private func learnBack() { sideButtons.learn("back") }

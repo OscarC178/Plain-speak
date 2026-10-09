@@ -55,15 +55,17 @@ and Google Drive, and says what it used.
 
 | Input | Action |
 | --- | --- |
-| Back side button | Read the message you are pointing at |
-| Front side button | Correct the spelling and grammar of the message you are pointing at |
+| Back side button | Read the message you are pointing at, or the text you have highlighted |
+| Front side button | Correct the message you are pointing at, or the text you have highlighted |
 | Command + back side button | Read, with context from your notes and Google Drive |
 | Control + Option + Command + R | Same as the back side button |
-| Control + Option + Command + D | Correct the text you have selected (your own draft) |
+| Control + Option + Command + C | Same as the front side button |
+| Control + Option + Command + D | Rewrite the text you have selected (your own draft) in your draft style |
 | Control + Option + Command + G | Same as Command + back side button |
 | Escape, or click anywhere else once the answer shows | Close the panel |
 
-The **p.** item in the menu bar has the same actions, plus **Reading style**,
+The **p.** item in the menu bar has the same actions. They use the text you have
+highlighted, or the whole window, because the pointer is on the menu when you click. It also has **Reading style**,
 **Draft style**, **Settings…**, **Setup and permissions…** and
 **Set front / back mouse button…** for mice that number their buttons differently.
 The assigned side buttons stop working as browser Back and Forward; with Option,
@@ -120,6 +122,14 @@ Press **Done**. The window comes back by itself only if something stops working.
    **Plain**, gives up to four short parts: **The point**, **They want**, **By**
    and **Unclear**. Parts that do not apply are left out.
 5. Click anywhere else, or press Escape, to close it. **Copy** keeps the text.
+
+### Highlight exactly what you mean
+
+For the sharpest answer, highlight the words first, then press any button or
+hotkey. Plainspeak works on exactly that text, and sends a strip of the window
+above and below it, with the highlight outlined, so Claude can see who wrote it
+and what it replies to. When you rewrite your own draft this way, Claude uses the
+messages above only to match the tone, and never adds anything from them.
 
 ### Fix the wording of someone else's message
 
@@ -223,8 +233,9 @@ flowchart LR
 ```
 
 1. The app captures the focused window with Apple's ScreenCaptureKit, at full
-   Retina sharpness, and draws a ring where you pointed. For drafts it takes your
-   selected text instead.
+   Retina sharpness, and draws a ring where you pointed. When you have highlighted
+   text, it sends that text plus a strip of the window around it, with the
+   highlight outlined.
 2. It posts the capture to a small service inside the app, on `127.0.0.1`,
    authenticated with a local token.
 3. The service adds your style and rules, and hands the capture to a Claude
