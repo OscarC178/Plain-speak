@@ -4,13 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createService } from './service';
 import { loadRules } from './rules';
+import { buildPrompt } from './prompt';
 let services: Awaited<ReturnType<typeof createService>>[] = [];
 let dirs: string[] = [];
 afterEach(async () => { for (const s of services) await s.close(); services = []; for (const d of dirs) await rm(d, { recursive: true, force: true }); dirs = []; });
 async function fixture(notify: (id: string, prompt: string) => Promise<void> = async () => {}) {
   const root = await mkdtemp(join(tmpdir(), 'plainspeak-test-')); dirs.push(root);
   await mkdir(join(root, 'rules')); await cp('rules/rules.example.yaml',join(root,'rules/rules.example.yaml'));
-  const service = await createService(root,notify,0); services.push(service);
+  const service = await createService(root,(id,job)=>notify(id,buildPrompt(id,job.cap,job.rules)),0); services.push(service);
   const url = `http://127.0.0.1:${service.server.port}`;
   const post = (body: unknown, secret = service.token, origin?: string) => fetch(url+'/capture',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${secret}`,...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
   return {root,service,url,post};
@@ -72,4 +73,14 @@ test('pointer is accepted inside the window and rejected outside 0 to 1',async()
  expect((await f.post({...capture,image_base64:png,pointer:{x:1.5,y:0.2}})).status).toBe(400);
  expect((await f.post({...capture,image_base64:png,pointer:{x:0.2,y:0.8}})).status).toBe(202);
  expect(prompt).toContain('about 20% across and 80% down');
+});
+
+test('partial text is visible while pending, and an engine failure ends the request',async()=>{
+ const f=await fixture(); const read=async(id:string)=>(await fetch(f.url+'/result/'+id,{headers:{Authorization:'Bearer '+f.service.token}})).json();
+ const {request_id}=await (await f.post(capture)).json();
+ f.service.progress(request_id,'The point: Send');
+ expect(await read(request_id)).toMatchObject({state:'pending',text:'The point: Send'});
+ await f.service.fail(request_id,'The Claude session stopped before answering. Try again.');
+ expect(await read(request_id)).toMatchObject({state:'error',text:'The Claude session stopped before answering. Try again.'});
+ expect((await f.post(capture)).status).toBe(202);
 });

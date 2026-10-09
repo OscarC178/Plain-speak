@@ -10,7 +10,8 @@
     "url": "git+https://github.com/OscarC178/Plain-speak.git"
   },
   "scripts": {
-    "dev": "bash daemon/slipway-run.sh",
+    "dev": "bash daemon/run.sh",
+    "start": "bash daemon/run.sh",
     "test": "bun test",
     "server": "bun run src/server.ts",
     "rules:check": "bun run src/cli.ts",
@@ -24,6 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.295",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "zod": "^3.23.8"
   },

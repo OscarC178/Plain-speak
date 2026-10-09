@@ -2,8 +2,7 @@ import { mkdir, chmod, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { loadRules, resolve, type Capture } from './rules';
-import { buildPrompt } from './prompt';
+import { loadRules, resolve, type Capture, type Resolved } from './rules';
 import { rulesFile } from './paths';
 
 const input = z.object({
@@ -12,10 +11,12 @@ const input = z.object({
   context: z.boolean().optional(),
   pointer: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) }).strict().optional(),
 }).strict().refine(v => v.text?.trim() || v.image_base64, 'Capture needs text or a PNG');
+/** One capture handed to an engine. Each engine builds its own prompt from it. */
+export type Job = { cap: Capture & { context?: boolean }; rules: Resolved; image?: Buffer };
 export type Result = { request_id: string; state: 'pending' | 'done' | 'error'; mode: string; text?: string; created: number };
 
 /** Loopback service: an owner-only token also blocks requests from arbitrary web pages. */
-export async function createService(root: string, notify: (id: string, prompt: string) => Promise<void>, port = 8790, local = join(root, '.local')) {
+export async function createService(root: string, notify: (id: string, job: Job) => Promise<void>, port = 8790, local = join(root, '.local')) {
   await mkdir(local, { recursive: true, mode: 0o700 });
   await chmod(local, 0o700);
   const tokenPath = join(local, 'token');
@@ -70,14 +71,16 @@ export async function createService(root: string, notify: (id: string, prompt: s
         const rules = resolve(await loadRules(rulesPath), cap);
         const id = crypto.randomUUID();
         const item: Result & { image?: string } = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now() };
+        let bytes: Buffer | undefined;
         if (cap.image_base64) {
           if (!/^[A-Za-z0-9+/]+={0,2}$/.test(cap.image_base64)) return json({ error: 'Invalid base64 PNG' }, 400);
-          const bytes = Buffer.from(cap.image_base64, 'base64');
+          bytes = Buffer.from(cap.image_base64, 'base64');
           if (!bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) return json({ error: 'Expected PNG screenshot' }, 400);
           item.image = join(local, `${id}.png`); await Bun.write(item.image, bytes); await chmod(item.image, 0o600);
         }
         pending.set(id, item);
-        try { await notify(id, buildPrompt(id, { ...cap, image: item.image } as Capture, rules)); }
+        const { image_base64, ...fields } = cap;
+        try { await notify(id, { cap: { ...fields, image: item.image }, rules, image: bytes }); }
         catch { pending.delete(id); await removeImage(item); return json({ error: 'Claude transport unavailable' }, 503); }
         return json({ request_id: id }, 202);
       } catch (e) { return json({ error: e instanceof Error ? e.message : 'Invalid request' }, 400); }
@@ -89,6 +92,12 @@ export async function createService(root: string, notify: (id: string, prompt: s
     async show(id: string, text: string) {
       const item = pending.get(id); if (!item || item.state !== 'pending') throw new Error('Request is unknown, expired or already complete');
       item.text = text; item.state = 'done'; await removeImage(item);
+    },
+    /** Partial text while Claude is still writing; the overlay shows it as it grows. */
+    progress(id: string, text: string) { const item = pending.get(id); if (item?.state === 'pending') item.text = text; },
+    async fail(id: string, message: string) {
+      const item = pending.get(id); if (!item || item.state !== 'pending') return;
+      item.text = message; item.state = 'error'; await removeImage(item);
     },
     async close() { clearInterval(clean); server.stop(true); await Promise.all([...pending.values()].map(removeImage)); },
   };

@@ -6,6 +6,7 @@ import { createService } from './service';
 import { resolve } from 'node:path';
 import { vaultNote, searchVault } from './vault';
 import { stateHome } from './paths';
+import { buildPrompt } from './prompt';
 
 const root = resolve(import.meta.dir, '..');
 const state = stateHome();
@@ -47,7 +48,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async req => {
   } catch (e) { return { isError: true, content: [{ type: 'text', text: String(e) }] }; }
 });
 await mcp.connect(new StdioServerTransport());
-service = await createService(root, async (id, content) => {
+service = await createService(root, async (id, job) => {
+  const content = buildPrompt(id, job.cap, job.rules);
   await mcp.notification({ method: 'notifications/claude/channel', params: { content, meta: { request_id: id } } });
 }, Number(process.env.PLAINSPEAK_PORT ?? 8790), state);
 // MCP owns the process: do not leave an orphan HTTP listener when the session exits.

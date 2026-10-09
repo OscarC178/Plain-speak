@@ -16,7 +16,7 @@ button{background:#b7f3a3;color:#132018;border:0;border-radius:8px;padding:6px 1
 // Fragment credentials are not sent in the URL request or Referer.
 const params=new URLSearchParams(location.hash.slice(1)),id=params.get('id'),token=params.get('token');
 history.replaceState(null,'',location.pathname);
-let text='',stopped=false;
+let text='',shown='',stopped=false;
 const footer=document.querySelector('footer'),result=document.getElementById('result'),status=document.getElementById('status'),copy=document.getElementById('copy');
 function bridge(action,value){if(window.webkit?.messageHandlers?.plainspeak)window.webkit.messageHandlers.plainspeak.postMessage({action,text:value})}
 // Ask Hammerspoon to fit the window to the content, so short answers get a short panel.
@@ -40,6 +40,7 @@ async function poll(){
  try{const r=await fetch('/result/'+id,{headers:{Authorization:'Bearer '+token}});const data=await r.json();if(!r.ok)throw Error(data.error);
  document.getElementById('mode').textContent=data.mode==='draft'?'Your words, corrected':data.mode==='correct'?'Message, corrected':'What they mean';
  if(data.state!=='pending'){stopped=true;text=data.text;render(text,data.mode);status.textContent=data.state==='done'?'':'Needs attention';copy.disabled=data.state!=='done';if(data.state==='done'&&data.mode==='draft')bridge('copy',text)}
+ else if(data.text&&data.text!==shown){shown=data.text;render(shown,data.mode);status.textContent='Writing…';fit()} // streamed partial answer
  }catch(e){stopped=true;status.textContent='Could not load result';result.textContent=e.message}
  if(stopped){fit();bridge('ready','')}else setTimeout(poll,200);
 }if(id&&token){poll();fit()}else status.textContent='Use the Plainspeak hotkey to capture a message.';

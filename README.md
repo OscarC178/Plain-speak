@@ -71,22 +71,22 @@ With any other modifier held they behave normally.
 flowchart LR
   A[Side button or hotkey] --> B[Hammerspoon<br/>plainspeak.lua]
   B -- screenshot or selected text --> C[Local service<br/>127.0.0.1:8790]
-  C -- channel event --> D[Claude Code session in tmux<br/>Claude Haiku 5.5]
-  D -- show tool --> C
+  C -- capture and screenshot --> D[Warm Claude session<br/>Agent SDK, Claude Haiku 5.5]
+  D -- answer as it is written --> C
   C --> E[Overlay panel]
 ```
 
 1. Hammerspoon captures the focused window, or your selected text for drafts.
 2. It posts the capture to a small Bun service on `127.0.0.1`, authenticated
    with a local token.
-3. The service passes it to a long-running Claude Code session as a channel event.
-   That session runs inside tmux, so no terminal window has to stay open.
-4. Claude reads the capture and returns plain text through the `show` tool.
-5. The overlay panel polls the service and displays the result.
+3. The service hands the capture, screenshot included, to a Claude session that
+   it keeps warm through the Claude Agent SDK, signed in with your Claude plan.
+4. Claude's answer streams back, and the panel shows the words as they arrive.
+5. Every 15 captures the session is replaced, in the background, to keep it small.
 
-The session can only show text in the overlay and read your notes. Shell
-commands, file edits and known messaging tools are denied in
-`daemon/claude-settings.json`.
+Normal reads run with no tools at all. A context lookup (Command + back button)
+gets its own short session that can only read your Obsidian notes and Google
+Drive. Sending, sharing, writing and shell commands are blocked.
 
 ## What you need
 
@@ -98,16 +98,12 @@ Install these before you start. The commands use [Homebrew](https://brew.sh/).
 | Xcode Command Line Tools | `git` to clone the repo, `python3` for the installer | `xcode-select --install` |
 | [Hammerspoon](https://www.hammerspoon.org/) | Watches the buttons and hotkeys, takes the screenshot, shows the panel | `brew install --cask hammerspoon` |
 | [Bun](https://bun.sh/) | Runs the small local service | `brew install oven-sh/bun/bun` |
-| [tmux](https://github.com/tmux/tmux) | Keeps the Claude session running in the background | `brew install tmux` |
-| [Claude Code](https://code.claude.com/docs/en/setup) | Runs Claude Haiku 5.5 on your plan | `brew install --cask claude-code` |
+| [Claude Code](https://code.claude.com/docs/en/setup) | Signs you in to your Claude plan. Plainspeak runs Claude through that login | `brew install --cask claude-code` |
 | A Claude Pro, Max, Team or Enterprise plan | Plainspeak uses your plan, not an API key. The free plan has no Claude Code | Run `claude` once and sign in |
 | A mouse with side buttons (optional) | The quickest way to use it. Hotkeys work without one | - |
 
 Hammerspoon also needs two macOS permissions, **Accessibility** and **Screen
 Recording**. Step 3 of the setup covers them.
-
-Claude Code channels are a research preview. Team and Enterprise organisations
-must enable them. See [Claude channels](https://code.claude.com/docs/en/channels).
 
 ## Set up
 
@@ -141,66 +137,42 @@ System Settings > Privacy & Security. Then quit and reopen Hammerspoon. Reload
 Config is not enough: it reloads the Lua but the running process keeps its old
 permissions.
 
-**4. Start the session and accept its first-run prompts.**
+**4. Start Plainspeak.**
 
 ```sh
-bun run daemon:start
-bun run daemon:attach
+bun run start
 ```
 
-In the attached terminal, accept **Yes, I trust this folder** if asked, then
-**I am using this for local development** for the channel warning. Detach with
-Control + B, then D. The PS item should now appear in the menu bar.
-
-**5. Check it.**
-
-```sh
-bun run daemon:status
-```
-
-You should see `"transport":"connected"`. Focus a message and press a side button.
+There are no prompts to answer. After a few seconds you should see
+`Claude session ready.` The PS item appears in the menu bar. Focus a message and
+press a side button.
 
 ## Run it
 
-There are three ways to keep the session running. They share one tmux session
-called `plainspeak`, so only one runs at a time.
+Plainspeak runs on port 8790, so only one copy runs at a time.
 
-**From a terminal.**
-
-```sh
-bun run daemon:start    # start the session in tmux
-bun run daemon:attach   # see it, answer prompts, check quota (Control + B, D to leave)
-bun run daemon:status   # is it up?
-bun run daemon:stop     # stop it
-```
+**From a terminal.** `bun run start`. Control + C stops it. The terminal shows
+when the session is ready and how long each answer took, never the content.
 
 **From Slipway.** Nothing to configure. Add the repo, open any branch or
 worktree, and press **Start dev server** in the Run panel. With no Dev Start
-Command saved, Slipway runs `npm run dev`, and this repo's `dev` script starts
-Plainspeak. If you have saved commands for this repo, add `npm run dev` to them
-or clear the list.
-
-`npm run dev` (or `bun run dev`) runs `daemon/slipway-run.sh`. Slipway's Run
-panel has no terminal, so the script starts the tmux session, accepts the channel
-warning for you, and prints a health line every minute. Stopping the tab stops
-the session. If the session dies, the tab ends with an error.
-
-Because the command lives in the repo, every branch and worktree runs its own
-copy of the script. Only start branches you trust: the script runs with your
-user rights. A fresh worktree installs its dependencies on first run.
-The first time Claude sees a new worktree folder it asks whether to trust it. The
-script never answers that for you: it waits and tells you to run
-`bun run daemon:attach` in a terminal tab and choose **Yes, I trust this folder**.
+Command saved, Slipway runs `npm run dev`, which starts Plainspeak the same way.
+Stopping the tab stops it. A fresh worktree installs its dependencies on first
+run. Every branch runs its own copy of the code, so only start branches you trust.
 
 **At login.**
 
 ```sh
-bun run install:launchd     # start the session when you log in
+bun run install:launchd     # start at login, and restart if it ever stops
 bun run uninstall:launchd
 ```
 
-launchd starts the session once. It does not restart it if Claude exits, and a
-fresh start still waits at the channel warning until you attach and accept it.
+The log is in `~/.plainspeak/launchd.log`.
+
+**The old tmux engine.** The previous engine, a Claude Code session in tmux
+using channels, still works for now with `bun run daemon:start`. It needs tmux
+and its first-run prompts, and it will be removed in a later version. Stop it
+with `bun run daemon:stop` before running `bun run start`.
 
 ## How to use it
 
@@ -251,21 +223,19 @@ assume you remember earlier work.
   Plainspeak knows which one you mean.
 - Do not capture anything you could not share with Anthropic. The screenshot goes
   to Claude through your account.
-- Restart the session now and then (see [Run it](#run-it)). A long session is
-  slower and uses more of your plan.
 
 ## Configure
 
 ### Model and effort
 
-The session runs `claude-haiku-5-5` at `medium` effort by default. Override
+The session runs `claude-haiku-5-5` at `high` effort by default. Override
 either when starting:
 
 ```sh
-PLAINSPEAK_MODEL=claude-opus-5-5 PLAINSPEAK_EFFORT=high bun run daemon:start
+PLAINSPEAK_MODEL=claude-opus-5-5 PLAINSPEAK_EFFORT=high bun run start
 ```
 
-Stop the session first; a running session keeps its model.
+Stop Plainspeak first; a running copy keeps its model.
 
 ### Personal files
 
@@ -318,27 +288,29 @@ instruction to the model, not a hard limit. Allowed limits are 1 to 30.
 ### Notes and Google Drive context
 
 Plainspeak ships read-only `vault_search` and `vault_note` tools for a local
-Obsidian vault. Point `~/.plainspeak/config.json` at your vault and restart the
-session. Search covers up to 4,000 notes and the first 16,000 characters of each.
+Obsidian vault. Point `~/.plainspeak/config.json` at your vault and restart
+Plainspeak. Search covers up to 4,000 notes and the first 16,000 characters of each.
 Reads outside the vault, including through symlinks, are refused. There is no
 write tool.
 
-Google Drive works through whatever Drive connector your Claude Code account
-already has. Remote tools keep their normal permission prompts, so approve read
-access in the attached session. Without a connected source, the overlay says
-context was not checked.
+Google Drive works through the Drive connector your Claude account already has.
+To reach it, a context lookup loads your Claude settings, but it can only run the
+read-only Obsidian and Drive tools. A hook blocks everything else, even tools your
+own settings allow. There are no approval prompts. Without a connected source,
+the panel says context was not checked.
 
 ## Troubleshooting
 
 | Symptom | Likely cause and fix |
 | --- | --- |
-| Buttons do nothing, or "Plainspeak unavailable" | The session is not running. Run `bun run daemon:status`, then `daemon:start`. |
-| "Claude did not respond within two minutes" | The session is waiting on a prompt or a usage limit. Run `bun run daemon:attach` to see it. |
+| Buttons do nothing, or "Plainspeak unavailable" | Plainspeak is not running. Run `bun run start`. |
+| "Port 8790 is already in use" | The old tmux daemon is running. Run `bun run daemon:stop`, then `bun run start`. |
+| "Claude could not finish this capture: Not logged in" | Run `claude` in a terminal, sign in, then restart Plainspeak. |
+| "Claude did not respond within two minutes" | Usually a usage limit. Check the terminal or `~/.plainspeak/launchd.log`. |
 | "Unauthorised" | Hammerspoon is reading an old token. Run `bun run install:hammerspoon` again. |
 | "Accessibility" or "Screen Recording is not active" | Grant the permission, then quit and reopen Hammerspoon. |
 | Buttons swapped or not detected | PS menu > **Set front mouse button…**, press it, then the same for the back button. |
 | Draft hotkey says to select text | The app does not expose its selection to macOS. Copy the text into another editor. |
-| Slipway tab waits at "trust this folder" | First run in that worktree. Attach and choose **Yes, I trust this folder**. |
 
 ## Privacy and safety
 
@@ -348,9 +320,9 @@ context was not checked.
   so web pages cannot post captures.
 - Captures are never written to logs. Temporary screenshots are deleted after a
   result, a timeout or a clean shutdown; a crash can leave one in `~/.plainspeak`.
-- Results stay in memory for ten minutes. Claude's own session history may keep
-  content.
-- There is no Slack or Gmail sending endpoint, and messaging tools are denied.
+- Results stay in memory for ten minutes. Claude sessions are not saved to disk.
+- There is no sending endpoint. Normal reads run with no tools; context lookups
+  can only read Obsidian and Google Drive.
 - Nothing runs in the background: no polling, no unread-message scraping, no
   automatic screenshots.
 - A rewrite can misread a message. Check dates, numbers and commitments before
@@ -359,8 +331,8 @@ context was not checked.
 ## Limits
 
 - macOS only, Claude only.
-- Usage counts against your subscription. Screenshots, a growing session context
-  and notes lookups all add up. Restart the session when it gets long.
+- Usage counts against your plan's limits. The session is replaced every 15
+  captures to keep each capture small. Context lookups use more.
 - Identity-based rules depend on what Claude can see in the screenshot.
 - Automatic thread lookup from a tab title is not implemented.
 
@@ -373,10 +345,12 @@ bun run typecheck
 
 The tests cover rule matching, capture authentication, foreign-origin rejection,
 request and result correlation, concurrent captures, screenshot lifetime,
-transport failure, invalid configuration and vault path boundaries. They do not
-spend model usage.
+transport failure, invalid configuration, vault path boundaries, and the engine's
+warm-up, streaming, session renewal, failures and read-only context tools. They
+use a stand-in Claude session, so they do not spend model usage.
 
-References: [Claude channels](https://code.claude.com/docs/en/channels),
+References: [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview),
+[Claude channels](https://code.claude.com/docs/en/channels),
 [channels reference](https://code.claude.com/docs/en/channels-reference),
 [Hammerspoon window snapshot](https://www.hammerspoon.org/docs/hs.window.html#snapshot),
 [Hammerspoon webview](https://www.hammerspoon.org/docs/hs.webview.html).

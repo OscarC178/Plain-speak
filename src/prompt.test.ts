@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { buildPrompt } from './prompt';
+import { buildPrompt, buildTurn } from './prompt';
 import { resolve, type RulesFile } from './rules';
 const rules: RulesFile = {defaults:{max_lines:6,read_instructions:'Summarise the message.',draft_instructions:'Edit my selected draft.'},profiles:{},rules:[]};
 test('incoming correction preserves content with legacy personal rule files',()=>{
@@ -21,4 +21,13 @@ test('pointer position steers which visible message is explained, only for scree
  expect(buildPrompt('id',cap,resolve(rules,cap))).toContain('about 43% across and 70% down the screenshot');
  const noImage={...cap,image:undefined};
  expect(buildPrompt('id',noImage,resolve(rules,noImage))).not.toContain('pointed at');
+});
+test('SDK turns carry the same rules without the channel tool instructions',()=>{
+ const cap={app:'Slack',title:'general - Slack',mode:'read' as const,image:'/tmp/x.png',pointer:{x:0.5,y:0.25}};
+ const turn=buildTurn(cap,resolve(rules,cap));
+ expect(turn).toStartWith('New capture. Mode: read.');
+ expect(turn).toContain('Summarise the message.');
+ expect(turn).toContain('about 50% across and 25% down');
+ expect(turn).not.toContain('capture_image');
+ expect(turn).not.toContain('show tool');
 });
