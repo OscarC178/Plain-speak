@@ -92,3 +92,12 @@ test('partial text is visible while pending, and an engine failure ends the requ
  expect(await read(request_id)).toMatchObject({state:'error',text:'The Claude session stopped before answering. Try again.'});
  expect((await f.post(capture)).status).toBe(202);
 });
+
+test('each answer carries the panel colours chosen in settings',async()=>{
+ const f=await fixture(); const auth={Authorization:'Bearer '+f.service.token};
+ const read=async()=>{const {request_id}=await (await f.post(capture)).json(); const r=await (await fetch(f.url+'/result/'+request_id,{headers:auth})).json(); await f.service.show(request_id,'ok'); return r.theme;};
+ expect(await read()).toBe('light');
+ const {settings}=await (await fetch(f.url+'/settings',{headers:auth})).json();
+ await fetch(f.url+'/settings',{method:'PUT',headers:{...auth,'Content-Type':'application/json'},body:JSON.stringify({...settings,theme:'dark'})});
+ expect(await read()).toBe('dark');
+});

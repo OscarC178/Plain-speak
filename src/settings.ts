@@ -31,6 +31,8 @@ const rule = z.object({
 }).strict();
 
 export const settingsSchema = z.object({
+  // Light is dark text on off-white, as the BDA style guide prefers; system follows macOS.
+  theme: z.enum(['light', 'dark', 'system']).default('light'),
   read_style: z.string().default('plain'),
   draft_style: z.string().default('clean'),
   max_lines: z.number().int().min(1).max(30).default(6),

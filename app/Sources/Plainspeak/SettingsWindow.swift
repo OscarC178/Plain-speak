@@ -14,7 +14,7 @@ final class SettingsWindow: NSObject, NSWindowDelegate {
             w.title = "Plainspeak Settings"
             w.isReleasedWhenClosed = false
             w.minSize = NSSize(width: 520, height: 400)
-            w.backgroundColor = NSColor(calibratedRed: 0.08, green: 0.11, blue: 0.13, alpha: 1)
+            w.backgroundColor = NSColor(calibratedRed: 0.98, green: 0.965, blue: 0.925, alpha: 1) // the light theme's off-white
             w.contentView = WKWebView(frame: w.contentRect(forFrameRect: w.frame))
             w.center()
             w.delegate = self

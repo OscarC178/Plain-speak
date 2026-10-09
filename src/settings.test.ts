@@ -61,3 +61,12 @@ test('mistakes are refused with plain messages', async () => {
     await expect(saveSettings(dir, { ...DEFAULT_SETTINGS, surprise: true })).rejects.toThrow();
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('panel colours default to light and only accept the three choices', async () => {
+  expect(DEFAULT_SETTINGS.theme).toBe('light');
+  const dir = await mkdtemp(join(tmpdir(), 'plainspeak-settings-'));
+  try {
+    expect((await saveSettings(dir, { ...DEFAULT_SETTINGS, theme: 'system' })).theme).toBe('system');
+    await expect(saveSettings(dir, { ...DEFAULT_SETTINGS, theme: 'neon' })).rejects.toThrow();
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

@@ -18,8 +18,8 @@ on the screen you already have open.
   point, what they want from you, the deadline and anything unclear.
 - **Read across languages.** Awkward wording from someone writing in a second
   language is read for what they meant.
-- **Easier to read.** Short parts, bold labels and clear gaps between them, using
-  the spacing, font and layout advice in the British Dyslexia Association's
+- **Easier to read.** Short parts, bold labels and clear gaps between them, in dark
+  text on off-white, following the British Dyslexia Association's
   [style guide](https://cdn.bdadyslexia.org.uk/uploads/documents/Advice/style-guide/BDA-Style-Guide-2023.pdf?v=1680514568).
 - **Your style.** ADHD-friendly, key points, one line, or a style you write
   yourself. Different styles for different apps, channels or people.
@@ -159,7 +159,7 @@ around ten seconds, because it really searches.
 
 ## Styles and rules
 
-![The settings window: reading styles, draft styles, answer length and custom styles](docs/images/settings.png)
+![The settings window: reading styles, draft styles and panel colours](docs/images/settings.png)
 
 Open **Settings…** from the **p.** menu. Every change saves itself and applies from
 your next capture. There is no Save button and nothing to restart. For a quick
@@ -173,6 +173,9 @@ switch, use **Reading style** or **Draft style** in the menu.
 | **One line:** a single sentence | **Friendlier:** warmer, same meaning |
 | **How it sounds:** the likely tone and other readings | **More professional:** client-ready, no filler |
 | **Explain simply:** jargon and idioms spelled out | **Slack message:** short and casual |
+
+**Panel colours.** Light, the default, is dark text on off-white, as the BDA guide
+recommends. Dark and Match macOS are there too.
 
 **Custom styles.** Describe in plain words how you want answers to look, for
 example "Lead with what I need to do. Use short bullet points." Saved styles join
@@ -279,8 +282,6 @@ Everything personal lives in `~/.plainspeak`, outside the repo. Set
 - macOS only, Claude only.
 - Usage counts against your plan's limits. Context lookups use more.
 - Rules about people and threads depend on what Claude can see in the screenshot.
-- The panel is dark only. The BDA guide prefers dark text on an off-white
-  background, which is not offered yet.
 - The app is signed for your own machine, not notarised, so a built copy shared
   with someone else shows macOS security warnings. They should build it themselves.
 

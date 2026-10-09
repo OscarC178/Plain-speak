@@ -13,7 +13,7 @@ const input = z.object({
 }).strict().refine(v => v.text?.trim() || v.image_base64, 'Capture needs text or a PNG');
 /** One capture handed to an engine. Each engine builds its own prompt from it. */
 export type Job = { cap: Capture & { context?: boolean }; rules: Resolved; image?: Buffer };
-export type Result = { request_id: string; state: 'pending' | 'done' | 'error'; mode: string; text?: string; created: number };
+export type Result = { request_id: string; state: 'pending' | 'done' | 'error'; mode: string; text?: string; created: number; theme: string };
 
 /** Loopback service: an owner-only token also blocks requests from arbitrary web pages. */
 export async function createService(root: string, notify: (id: string, job: Job) => Promise<void>, port = 8790, local = join(root, '.local')) {
@@ -75,9 +75,10 @@ export async function createService(root: string, notify: (id: string, job: Job)
         const cap = input.parse(JSON.parse(Buffer.concat(chunks).toString()));
         if ([...pending.values()].some(v => v.state === 'pending')) return json({ error: 'A capture is already processing. Wait for its result.' }, 429);
         if (cap.mode === 'draft' && !cap.text?.trim()) return json({ error: 'Select your own draft text before using the draft hotkey.' }, 400);
-        const rules = resolve(toRulesFile(await loadSettings(local)), cap);
+        const settings = await loadSettings(local);
+        const rules = resolve(toRulesFile(settings), cap);
         const id = crypto.randomUUID();
-        const item: Result = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now() };
+        const item: Result = { request_id: id, state: 'pending', mode: cap.mode, created: Date.now(), theme: settings.theme };
         let bytes: Buffer | undefined;
         if (cap.image_base64) {
           if (!/^[A-Za-z0-9+/]+={0,2}$/.test(cap.image_base64)) return json({ error: 'Invalid base64 PNG' }, 400);

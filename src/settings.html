@@ -2,7 +2,9 @@
 <html lang="en-GB"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plainspeak settings</title>
 <style>
 /* Same look as the panel, and the same reading rules: sans serif, 1.6 line spacing, short blocks with clear gaps, bold not italics. */
-:root{color-scheme:dark;--bg:#141b22;--card:#1b242d;--field:#0f151b;--line:#3c4851;--text:#eceee9;--muted:#a6bab3;--accent:#b7f3a3;--bad:#ffb4a8}
+:root{color-scheme:light;--bg:#faf6ec;--card:#fffcf4;--field:#fdfaf2;--line:#d8d0bf;--text:#1f2328;--muted:#5d6670;--accent:#1f4e8c;--bad:#8a3d00}
+:root[data-theme=dark]{color-scheme:dark;--bg:#141b22;--card:#1b242d;--field:#0f151b;--line:#3c4851;--text:#eceee9;--muted:#a6bab3;--accent:#b7f3a3;--bad:#ffb4a8}
+@media (prefers-color-scheme:dark){:root[data-theme=system]{color-scheme:dark;--bg:#141b22;--card:#1b242d;--field:#0f151b;--line:#3c4851;--text:#eceee9;--muted:#a6bab3;--accent:#b7f3a3;--bad:#ffb4a8}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.6 system-ui,sans-serif;letter-spacing:.02em;word-spacing:.06em}
 main{max-width:780px;margin:0 auto;padding:24px 28px 60px}
 header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;position:sticky;top:0;background:var(--bg);padding:12px 0;border-bottom:1px solid var(--line);z-index:2}
@@ -28,6 +30,7 @@ button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}bu
 
 <h2>When I read a message</h2><p class="help">How the panel explains a message (back side button).</p><div class="choices" id="read"></div>
 <h2>When I correct my own draft</h2><p class="help">How your selected text is rewritten (Control + Option + Command + D).</p><div class="choices" id="draft"></div>
+<h2>Panel colours</h2><p class="help">Light is dark text on off-white, which the British Dyslexia Association recommends.</p><div class="choices" id="theme"></div>
 <h2>Answer length</h2><p class="help">An upper limit. Styles are usually shorter.</p>
 <label class="row">Use at most <input type="number" class="short" id="max_lines" min="1" max="30"> lines</label>
 
@@ -64,7 +67,11 @@ function save(){
  },500);
 }
 
+const THEMES=[{id:'light',name:'Light',description:'Dark text on off-white.'},{id:'dark',name:'Dark',description:'Light text on dark blue-grey.'},{id:'system',name:'Match macOS',description:'Light or dark, as your Mac is set.'}];
 function renderChoices(){
+ document.documentElement.dataset.theme=model.theme;
+ const themes=document.getElementById('theme');themes.replaceChildren();
+ for(const t of THEMES)themes.append(el('label',{class:'choice'},el('input',{type:'radio',name:'theme',checked:model.theme===t.id,onchange:()=>{model.theme=t.id;renderChoices();save()}}),el('b',{textContent:t.name}),el('small',{textContent:t.description})));
  for(const kind of['read','draft']){
   const box=document.getElementById(kind);box.replaceChildren();
   for(const s of styles[kind])box.append(el('label',{class:'choice'},
