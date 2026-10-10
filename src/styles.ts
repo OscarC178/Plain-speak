@@ -19,13 +19,13 @@ export const PRESETS: Style[] = [
 Use these parts, in this order, each on its own line with a blank line between parts.
 Leave out any part that does not apply. Keep each part to one short sentence where you can.
   The point: what the message is about.
-  They want: what they are asking the reader to do.
+  They want: what they are asking the reader to do, including any question the reader should answer.
   By: any deadline, exactly as written.
   Unclear: anything ambiguous, named plainly.
 ${READ_SAFETY}` },
   { id: 'adhd', kind: 'read', name: 'ADHD-friendly', description: 'The action first. Three short lines at most.', instructions: `${READ_BASE}
 Lead with the action. Use at most three parts, each on its own line with a blank line between:
-  Do this: the one thing the reader needs to do, or "Nothing to do" if there is none.
+  Do this: the one thing the reader needs to do, such as answering a question they were asked, or "Nothing to do" if there is none.
   By: when the reader must do it, only if the message says. Not other dates the message mentions.
   Why: one short line of context, only if it changes what to do.
 No other detail. Add an "Unclear:" line only if it would change what the reader should do.
@@ -76,9 +76,11 @@ ${DRAFT_SAFETY}` },
 ];
 
 /** Correcting someone else's message has no styles: it fixes the wording and nothing else. */
-export const CORRECT = `Correct spelling, grammar, word order and missing words in the visible message.
+export const CORRECT = `Correct spelling, grammar, word order and missing words in the message.
 Preserve its meaning, tone, names, dates and numbers. Do not summarise or invent intent.
-Return corrected text only. Flag ambiguous wording instead of guessing.`;
+Return the corrected message and nothing else: no heading, no introduction, no note about which message
+it is or whether anything changed. If it needs no changes, return it as it is.
+If some wording is ambiguous, add one final line starting "Unclear:" instead of guessing.`;
 
 /** Something a rule can say about who wrote the message. Never inferred: only set by the reader. */
 export const SENDERS: Array<{ id: string; name: string; instructions: string; max_lines?: number }> = [

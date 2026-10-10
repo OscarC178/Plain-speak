@@ -129,6 +129,72 @@ final class Capture {
         return set == .success ? nil : "\(where_): setting the selection failed (\(set.rawValue))"
     }
 
+    /// Debug launches only: what Accessibility reports about the front app's focus and selection,
+    /// for diagnosing apps that do not share highlighted text.
+    func debugProbe(enabling: Bool = false) -> String {
+        guard let app = NSWorkspace.shared.frontmostApplication else { return "no front app" }
+        if enabling { askedLock.lock(); askedForAccessibility.remove(app.processIdentifier); askedLock.unlock(); enableWebAccessibility(pid: app.processIdentifier) }
+        var focused: CFTypeRef?
+        let found = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXFocusedUIElementAttribute as CFString, &focused)
+        guard found == .success, let focused else { return "\(app.localizedName ?? "?"): no focused element (error \(found.rawValue))" }
+        let element = focused as! AXUIElement
+        func describe(_ name: String) -> String {
+            var value: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+            guard result == .success, let value else { return "error \(result.rawValue)" }
+            if let text = value as? String { return "\"\(text.prefix(50))\" (\(text.count) chars)" }
+            return "present"
+        }
+        var names: CFArray?
+        AXUIElementCopyAttributeNames(element, &names)
+        // Read the selection without switching accessibility on, so a plain probe shows the "before".
+        askedLock.lock(); let wasAsked = !askedForAccessibility.insert(app.processIdentifier).inserted; askedLock.unlock()
+        let selection = selection(pid: app.processIdentifier)
+        if !wasAsked { askedLock.lock(); askedForAccessibility.remove(app.processIdentifier); askedLock.unlock() }
+        return "\(app.localizedName ?? "?"): role \(describe(kAXRoleAttribute)), selected text \(describe(kAXSelectedTextAttribute)), "
+            + "range \(describe(kAXSelectedTextRangeAttribute)), markers \(describe("AXSelectedTextMarkerRange")), "
+            + "\((names as? [String])?.count ?? 0) attributes; read: \(selection.text?.count ?? 0) chars, bounds \(selection.bounds.map { "\($0)" } ?? "none")"
+    }
+
+    /// Debug launches only: brings the window of `bundle` whose title contains `title` to the front.
+    func debugRaise(bundle: String, title: String) -> Bool {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first else { return false }
+        var windows: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXWindowsAttribute as CFString, &windows) == .success,
+              let list = windows as? [AXUIElement] else { return false }
+        for window in list {
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &value)
+            guard (value as? String)?.contains(title) == true else { continue }
+            AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+            AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+            app.activate()
+            return true
+        }
+        // Not a window title: look for a browser tab with that title and select it.
+        for window in list {
+            var queue: [(AXUIElement, Int)] = [(window, 0)]
+            while !queue.isEmpty {
+                let (element, depth) = queue.removeFirst()
+                var role: CFTypeRef?, name: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+                AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &name)
+                if (role as? String) == "AXRadioButton" || (role as? String) == "AXTab", (name as? String)?.contains(title) == true {
+                    AXUIElementPerformAction(element, kAXPressAction as CFString)
+                    AXUIElementSetAttributeValue(window, kAXMainAttribute as CFString, kCFBooleanTrue)
+                    AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+                    app.activate()
+                    return true
+                }
+                guard depth < 8 else { continue }
+                var children: CFTypeRef?
+                AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children)
+                for child in (children as? [AXUIElement]) ?? [] { queue.append((child, depth + 1)) }
+            }
+        }
+        return false
+    }
+
     /// Debug launches only: resizes the front window, so tests can make room for a cropped band.
     func debugResize(width: CGFloat, height: CGFloat) -> Bool {
         guard let app = NSWorkspace.shared.frontmostApplication else { return false }
@@ -183,15 +249,81 @@ final class Capture {
 
     // MARK: - Selection
 
+    /// Chrome and Electron apps (Slack, Teams, VS Code) build their page accessibility only when an
+    /// assistive app asks for it, so until then they report no highlighted text. Ask once per process.
+    private var askedForAccessibility = Set<pid_t>()
+    private let askedLock = NSLock() // used from the main thread and from captures
+    /// `wait` blocks until the app reports a focused element again (up to about 1.5 s).
+    func enableWebAccessibility(pid: pid_t, wait: Bool = true) {
+        askedLock.lock()
+        let first = askedForAccessibility.insert(pid).inserted
+        askedLock.unlock()
+        guard first else { return }
+        let app = AXUIElementCreateApplication(pid)
+        // Electron apps honour AXManualAccessibility. Chromium browsers only switch on for
+        // AXEnhancedUserInterface (VoiceOver's flag); it is limited to them because in other apps
+        // it can upset window animations.
+        let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier ?? ""
+        var switched = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue) == .success
+        if Self.chromiumBrowsers.contains(bundle) {
+            switched = AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue) == .success || switched
+        }
+        guard switched, wait else { return }
+        // The app builds its page accessibility over the next moment; wait until focus shows up.
+        for _ in 0..<12 {
+            var focused: CFTypeRef?
+            if AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success { return }
+            Thread.sleep(forTimeInterval: 0.125)
+        }
+    }
+    private static let chromiumBrowsers: Set<String> = [
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary", "com.google.chrome.for.testing", "org.chromium.Chromium",
+        "company.thebrowser.Browser", "com.microsoft.edgemac", "com.brave.Browser", "com.vivaldi.Vivaldi", "com.operasoftware.Opera",
+    ]
+
     /// The highlighted text, and where it is on screen when the app says so.
     private func selection(pid: pid_t) -> (text: String?, bounds: CGRect?) {
-        var focused: CFTypeRef?, selected: CFTypeRef?
+        enableWebAccessibility(pid: pid)
+        var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(AXUIElementCreateApplication(pid), kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focused else { return (nil, nil) }
         let element = focused as! AXUIElement
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selected) == .success,
-              let text = selected as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return (nil, nil) }
-        return (String(text.prefix(40000)), selectionBounds(element))
+        // Most apps report the highlight on the focused element. Web apps can focus something else
+        // while the highlight sits in the page (Slack focuses the message row you clicked), so then
+        // ask the page itself.
+        for candidate in [element] + webPage(around: element) {
+            if let text = selectedText(candidate) {
+                // Chrome marks paragraph and block boundaries with an object placeholder (U+FFFC).
+                let clean = text.replacingOccurrences(of: "\u{FFFC}", with: "\n")
+                return (String(clean.prefix(40000)), selectionBounds(candidate))
+            }
+        }
+        return (nil, nil)
+    }
+
+    /// An element's highlighted text: as plain text, or for web pages as a text-marker range.
+    private func selectedText(_ element: AXUIElement) -> String? {
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &value) == .success,
+           let text = value as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
+        var range: CFTypeRef?, string: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXSelectedTextMarkerRange" as CFString, &range) == .success, let range,
+           AXUIElementCopyParameterizedAttributeValue(element, "AXStringForTextMarkerRange" as CFString, range, &string) == .success,
+           let text = string as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return text }
+        return nil
+    }
+
+    /// The web page (AXWebArea) that contains `element`, if it is in one.
+    private func webPage(around element: AXUIElement) -> [AXUIElement] {
+        var current = element
+        for _ in 0..<40 {
+            var role: CFTypeRef?, parent: CFTypeRef?
+            AXUIElementCopyAttributeValue(current, kAXRoleAttribute as CFString, &role)
+            if (role as? String) == "AXWebArea" { return current == element ? [] : [current] }
+            guard AXUIElementCopyAttributeValue(current, kAXParentAttribute as CFString, &parent) == .success, let parent else { return [] }
+            current = parent as! AXUIElement
+        }
+        return []
     }
 
     /// Native text views describe a selection as a character range; web pages (Safari, Chrome and

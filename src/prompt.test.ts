@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { buildTurn } from './prompt';
+import { buildTurn, SDK_SYSTEM } from './prompt';
 import { resolve, type RulesFile } from './rules';
 const rules: RulesFile = {defaults:{max_lines:6,read_instructions:'Summarise the message.',draft_instructions:'Edit my selected draft.'},profiles:{},rules:[]};
 test('correcting a message preserves its content and never uses the draft style',()=>{
@@ -34,6 +34,8 @@ test('a marked pointer sends Claude to the ring drawn on the screenshot',()=>{
  expect(prompt).toContain('marked with a pink ring');
  expect(prompt).toContain('The ring is not part of the message');
  expect(prompt).toContain('Never mention the ring, the pointer or how you chose the message');
+ expect(prompt).toContain('from its first line to its last');
+ expect(prompt).toContain("down to the next sender's name");
 });
 test('highlighted text is the focus and the outlined screenshot is context only',()=>{
  const cap={app:'Slack',title:'general - Slack',mode:'read' as const,text:'can u lock the edit by the 18th',image:true,outlined:true};
@@ -57,4 +59,27 @@ test('a draft may use the screenshot for tone but never for content',()=>{
  expect(prompt).toContain('Never add content from it');
  expect(prompt).not.toContain('Work on exactly that text, not the rest of the screen');
  expect(prompt).toContain('For draft mode: edit selected text only');
+});
+test('the reader is named in every form people use for them, and told to act on what is asked of them',()=>{
+ const named:RulesFile={...rules,defaults:{...rules.defaults,reader:'Oscar Craven'}};
+ const cap={app:'Slack',title:'general - Slack',mode:'read' as const,text:'question for you @Oscar Craven'};
+ const prompt=buildTurn(cap,resolve(named,cap));
+ expect(prompt).toContain('The reader is Oscar Craven');
+ for (const form of ['Oscar','Craven','@Oscar Craven','@Oscar']) expect(prompt).toContain(form);
+ expect(prompt).toContain('such as answer the question');
+ expect(prompt).toContain('Never tell them to reply to themselves');
+ expect(prompt).toContain('call them "you"');
+ const unnamed=buildTurn(cap,resolve(rules,cap));
+ expect(unnamed).toContain('"You" in the message means the reader');
+});
+test('corrections and drafts end by asking for the bare text, reads do not',()=>{
+ for (const mode of ['correct','draft'] as const) {
+  const cap={app:'Slack',title:'general - Slack',mode,text:'plese chek'};
+  expect(buildTurn(cap,resolve(rules,cap)).trim()).toEndWith('Answer with the corrected text only, with nothing before or after it.');
+ }
+ const read={app:'Slack',title:'general - Slack',mode:'read' as const,text:'hello'};
+ expect(buildTurn(read,resolve(rules,read))).not.toContain('Answer with the corrected text only');
+});
+test('people are named or called they, never gendered from a name',()=>{
+ expect(SDK_SYSTEM).toContain('Never guess anyone\'s gender from their name');
 });
