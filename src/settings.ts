@@ -33,6 +33,8 @@ const rule = z.object({
 export const settingsSchema = z.object({
   // Light is dark text on off-white, as the BDA style guide prefers; system follows macOS.
   theme: z.enum(['light', 'dark', 'system']).default('light'),
+  // Who is reading, so a message that mentions or tags them is understood as meant for them.
+  reader_name: z.string().trim().max(120).default(''),
   read_style: z.string().default('plain'),
   draft_style: z.string().default('clean'),
   max_lines: z.number().int().min(1).max(30).default(6),
@@ -97,6 +99,7 @@ export function toRulesFile(s: Settings): RulesFile {
       read_instructions: styleText(s, s.read_style) ?? PRESETS[0].instructions,
       draft_instructions: styleText(s, s.draft_style) ?? PRESETS.find(p => p.id === 'clean')!.instructions,
       correct_instructions: CORRECT,
+      reader: s.reader_name || undefined,
     },
     profiles: Object.fromEntries(SENDERS.map(x => [x.id, { instructions: x.instructions, max_lines: x.max_lines }])),
     rules: s.rules.filter(r => r.enabled).map(r => {
