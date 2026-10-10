@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { catalogue, DEFAULT_SETTINGS, loadSettings, saveSettings, toRulesFile, type Settings } from './settings';
+import { catalogue, DEFAULT_SETTINGS, loadSettings, saveSettings, settingsSchema, toRulesFile, type Settings } from './settings';
 import { resolve } from './rules';
 import { PRESETS } from './styles';
 
@@ -69,4 +69,12 @@ test('panel colours default to light and only accept the three choices', async (
     expect((await saveSettings(dir, { ...DEFAULT_SETTINGS, theme: 'system' })).theme).toBe('system');
     await expect(saveSettings(dir, { ...DEFAULT_SETTINGS, theme: 'neon' })).rejects.toThrow();
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('the reader name is optional, trimmed and reaches the rules engine', () => {
+  expect(DEFAULT_SETTINGS.reader_name).toBe('');
+  const named = settingsSchema.parse({ reader_name: '  Oscar Craven ' });
+  expect(named.reader_name).toBe('Oscar Craven');
+  expect(resolve(toRulesFile(named), { ...slack, mode: 'read' }).reader).toBe('Oscar Craven');
+  expect(resolve(toRulesFile(DEFAULT_SETTINGS), { ...slack, mode: 'read' }).reader).toBeUndefined();
 });

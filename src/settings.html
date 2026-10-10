@@ -28,6 +28,8 @@ button.add{border-style:dashed;color:var(--accent);border-color:var(--accent)}bu
 <main>
 <header><div><span class="brand">plainspeak<span>.</span></span> settings</div><div id="status" role="status">Loading…</div></header>
 
+<h2>Your name</h2><p class="help">Messages that mention you by first name, surname or @-tag are read as meant for you.</p>
+<label class="field">Full name<input type="text" id="reader_name" maxlength="120" placeholder="For example: Oscar Craven"></label>
 <h2>When I read a message</h2><p class="help">How the panel explains a message (back side button).</p><div class="choices" id="read"></div>
 <h2>When I correct my own draft</h2><p class="help">How your selected text is rewritten (Control + Option + Command + D).</p><div class="choices" id="draft"></div>
 <h2>Panel colours</h2><p class="help">Light is dark text on off-white, which the British Dyslexia Association recommends.</p><div class="choices" id="theme"></div>
@@ -141,10 +143,11 @@ function renderRules(){
  }
 }
 
+document.getElementById('reader_name').addEventListener('input',e=>{model.reader_name=e.target.value;save()});
 document.getElementById('max_lines').addEventListener('input',e=>{const n=parseInt(e.target.value,10);if(n>=1&&n<=30){model.max_lines=n;save()}});
 document.getElementById('add-custom').onclick=()=>{model.custom_styles.push({id:newId('custom'),kind:'read',name:'',instructions:''});renderCustom()};
 document.getElementById('add-rule').onclick=()=>{model.rules.push({id:newId('rule'),name:'',enabled:true,app:'',channel:'',title:'',person:'',sender_domain:'',thread:'',read_style:'',draft_style:'',sender:'',max_lines:null,instructions:'',notes:''});renderRules()};
 
 if(!token)status('Open settings from the Plainspeak menu.','bad');
-else api('GET').then(data=>{model=data.settings;styles=data.styles;document.getElementById('max_lines').value=model.max_lines;renderChoices();renderCustom();renderRules();status('Changes save by themselves.')}).catch(e=>status('Could not load settings: '+e.message,'bad'));
+else api('GET').then(data=>{model=data.settings;styles=data.styles;document.getElementById('max_lines').value=model.max_lines;document.getElementById('reader_name').value=model.reader_name||'';renderChoices();renderCustom();renderRules();status('Changes save by themselves.')}).catch(e=>status('Could not load settings: '+e.message,'bad'));
 </script></html>

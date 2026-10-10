@@ -74,6 +74,8 @@ export interface RulesFile {
     read_instructions: string;
     draft_instructions: string;
     correct_instructions?: string;
+    /** The reader's name, so messages for them are recognised. */
+    reader?: string;
   };
   profiles: Record<string, Profile>;
   rules: Rule[];
@@ -84,6 +86,7 @@ export interface Resolved {
   channel?: string;
   mode: Mode;
   max_lines: number;
+  reader?: string;
   /** Ordered instruction blocks: defaults first, then profiles, then rule-specific. */
   instructions: string[];
   notes: string[];
@@ -162,6 +165,7 @@ export function resolve(rules: RulesFile, cap: Capture): Resolved {
     channel,
     mode: cap.mode,
     max_lines: rules.defaults.max_lines,
+    reader: rules.defaults.reader,
     instructions: [cap.mode === "draft" ? rules.defaults.draft_instructions : cap.mode === "correct" ? (rules.defaults.correct_instructions ?? "Correct spelling, grammar, word order and missing words in the visible message. Preserve the full meaning, names, dates, numbers and tone. Do not summarise or interpret motives. Return corrected text only. Flag ambiguous wording rather than guessing.") : rules.defaults.read_instructions],
     notes: [],
     conditional: [],

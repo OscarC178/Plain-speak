@@ -184,6 +184,10 @@ switch, use **Reading style** or **Draft style** in the menu.
 | **How it sounds:** the likely tone and other readings | **More professional:** client-ready, no filler |
 | **Explain simply:** jargon and idioms spelled out | **Slack message:** short and casual |
 
+**Your name.** Put your full name at the top of Settings. Messages that mention you by
+first name, surname or @-tag are then read as meant for you, so a question to you
+comes back as something to answer rather than "nothing to do".
+
 **Panel colours.** Light, the default, is dark text on off-white, as the BDA guide
 recommends. Dark and Match macOS are there too.
 
@@ -271,6 +275,7 @@ Everything personal lives in `~/.plainspeak`, outside the repo. Set
 | "Claude did not respond within two minutes" | Usually a usage limit. **Open log** in the menu shows the detail. |
 | Buttons swapped or not detected | **Set front mouse button…**, press it, then the same for the back button. |
 | Draft hotkey says to select text | The app does not share its selection with macOS. Copy the text into another editor. |
+| Highlighted text in Chrome or Slack is ignored | Chrome and Electron apps only share highlighted text with assistive apps. Plainspeak switches this on when you change to one; if the first try misses, press again. |
 | The wrong message was explained | Point at the message's text rather than the gap between messages. |
 
 ## Privacy and safety

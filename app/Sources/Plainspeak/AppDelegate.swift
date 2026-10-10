@@ -81,6 +81,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.register(kVK_ANSI_D) { [weak self] in self?.run(.draft) }
         hotkeys.register(kVK_ANSI_G) { [weak self] in self?.run(.read, context: true) }
         startDebugTrigger()
+
+        // Chrome and Electron apps only share highlighted text once asked; ask as soon as you switch
+        // to one, so the first capture there is not kept waiting.
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication, app.processIdentifier != getpid() else { return }
+            self?.capture.enableWebAccessibility(pid: app.processIdentifier, wait: false)
+        }
+        if let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != getpid() {
+            capture.enableWebAccessibility(pid: front.processIdentifier, wait: false)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) { service.stop() }
@@ -198,6 +208,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard ProcessInfo.processInfo.environment["PLAINSPEAK_DEBUG"] == "1" else { return }
         DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.oscarc.plainspeak.debug.capture"), object: nil, queue: .main) { [weak self] note in
             let object = note.object as? String ?? "read"
+            if object.hasPrefix("raise:") { // "raise:com.google.Chrome|title text"
+                let spec = object.dropFirst(6).split(separator: "|", maxSplits: 1).map(String.init)
+                if spec.count == 2, self?.capture.debugRaise(bundle: spec[0], title: spec[1]) != true { Toast.show("Debug: no such window") }
+                return
+            }
+            if object == "probe" { Toast.show("Probe: \(self?.capture.debugProbe() ?? "")"); return }
+            if object == "probe-enable" { Toast.show("Probe after enabling: \(self?.capture.debugProbe(enabling: true) ?? "")"); return }
             if object.hasPrefix("size:") {
                 let parts = object.dropFirst(5).split(separator: "x").compactMap { Double($0) }
                 if parts.count == 2, self?.capture.debugResize(width: parts[0], height: parts[1]) != true { Toast.show("Debug: could not resize the window") }
